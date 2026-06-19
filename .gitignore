@@ -1,0 +1,27 @@
+# --- Secrets: never commit these ---
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Local logs / scratch files
+_*.log
+*.log
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local agent config
+.claude/
