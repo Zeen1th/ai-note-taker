@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Note-Taker</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #181b22;
+      --panel-2: #1f232c;
+      --border: #2a2f3a;
+      --text: #e6e8ec;
+      --muted: #9aa3b2;
+      --accent: #6ea8fe;
+      --error: #ff6b6b;
+      --sp1: #6ea8fe;
+      --sp2: #6ee7b7;
+      --sp3: #f0a868;
+      --sp4: #c792ea;
+      --sp5: #ff8fab;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 18px; margin: 0; }
+    header .sub { color: var(--muted); font-size: 13px; }
+    .controls { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    input[type="file"] { color: var(--muted); font-size: 13px; max-width: 260px; }
+    button {
+      background: var(--accent);
+      color: #0b0d12;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.record { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+    button.record:hover:not(:disabled) { border-color: var(--error); color: var(--error); }
+    button.record.recording { background: var(--error); color: #fff; border-color: var(--error); animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.65; } }
+    .ctrl-divider { color: var(--muted); font-size: 12px; }
+    .rec-timer { font-size: 13px; color: var(--error); font-variant-numeric: tabular-nums; min-width: 44px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px 24px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 120px;
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .placeholder { color: var(--muted); font-size: 14px; }
+    .status { font-size: 13px; color: var(--muted); }
+    .status.error { color: var(--error); }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--muted);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    .progress-wrap { padding: 6px 24px 0; display: none; }
+    .progress-bar {
+      height: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--sp2));
+      border-radius: 7px;
+      transition: width 0.35s ease;
+    }
+    .progress-label { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+    /* Transcript */
+    .turn { margin-bottom: 12px; }
+    .turn .who { font-weight: 700; font-size: 13px; }
+    .turn .what { white-space: pre-wrap; }
+    .sp-1 .who { color: var(--sp1); } .sp-1 { border-left: 3px solid var(--sp1); padding-left: 10px; }
+    .sp-2 .who { color: var(--sp2); } .sp-2 { border-left: 3px solid var(--sp2); padding-left: 10px; }
+    .sp-3 .who { color: var(--sp3); } .sp-3 { border-left: 3px solid var(--sp3); padding-left: 10px; }
+    .sp-4 .who { color: var(--sp4); } .sp-4 { border-left: 3px solid var(--sp4); padding-left: 10px; }
+    .sp-5 .who { color: var(--sp5); } .sp-5 { border-left: 3px solid var(--sp5); padding-left: 10px; }
+
+    /* Notes markdown */
+    .notes :first-child { margin-top: 0; }
+    .notes h1, .notes h2, .notes h3 { color: var(--text); }
+    .notes code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+    /* Chat */
+    .chat-panel { grid-column: 1 / -1; display: flex; flex-direction: column; }
+    .messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .msg { padding: 10px 12px; border-radius: 8px; max-width: 80%; white-space: pre-wrap; }
+    .msg.user { background: var(--accent); color: #0b0d12; align-self: flex-end; }
+    .msg.assistant { background: var(--panel-2); align-self: flex-start; }
+    .chat-input { display: flex; gap: 8px; }
+    .chat-input input {
+      flex: 1;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .chat-input input:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🎙️ AI Note-Taker</h1>
+      <div class="sub">Local transcription, diarization &amp; notes</div>
+    </div>
+    <div class="controls">
+      <input type="file" id="file" accept=".mp3,.mp4,.m4a,.wav,.mov,.webm" />
+      <button id="transcribeBtn">Transcribe</button>
+      <span class="ctrl-divider">or</span>
+      <button id="recordBtn" class="record">● Record</button>
+      <span id="recTimer" class="rec-timer"></span>
+    </div>
+  </header>
+
+  <div id="status" class="status" style="padding: 0 24px;"></div>
+
+  <div id="progressWrap" class="progress-wrap">
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+    <div id="progressLabel" class="progress-label"></div>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Transcript</h2>
+      <div id="transcript"><div class="placeholder">Upload a recording to see the transcript.</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Notes</h2>
+      <div id="notes" class="notes"><div class="placeholder">Notes will appear here.</div></div>
+    </section>
+
+    <section class="panel chat-panel">
+      <h2>Chat about the recording</h2>
+      <div id="messages" class="messages"></div>
+      <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="Transcribe a recording first…" disabled />
+        <button id="sendBtn" disabled>Send</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $("file");
+    const transcribeBtn = $("transcribeBtn");
+    const statusEl = $("status");
+    const transcriptEl = $("transcript");
+    const notesEl = $("notes");
+    const messagesEl = $("messages");
+    const chatInput = $("chatInput");
+    const sendBtn = $("sendBtn");
+    const progressWrap = $("progressWrap");
+    const progressFill = $("progressFill");
+    const progressLabel = $("progressLabel");
+    const recordBtn = $("recordBtn");
+    const recTimer = $("recTimer");
+
+    let transcript = "";          // speaker-labeled transcript kept in memory
+    let chatMessages = [];        // [{role, content}]
+
+    function setStatus(text, isError = false, loading = false) {
+      statusEl.className = "status" + (isError ? " error" : "");
+      statusEl.innerHTML = loading ? `<span class="spinner"></span>${text}` : text;
+    }
+
+    function showProgress(on) {
+      progressWrap.style.display = on ? "block" : "none";
+      if (on) { progressFill.style.width = "0%"; progressLabel.textContent = ""; }
+    }
+
+    function setProgress(pct, stage, elapsed) {
+      progressFill.style.width = `${pct}%`;
+      const secs = elapsed != null ? ` · ${elapsed.toFixed(1)}s` : "";
+      progressLabel.textContent = `${stage || ""} — ${pct}%${secs}`;
+    }
+
+    function speakerIndex(label) {
+      const m = /Speaker (\d+)/.exec(label);
+      const n = m ? parseInt(m[1], 10) : 1;
+      return ((n - 1) % 5) + 1;  // cycle through 5 colors
+    }
+
+    function renderTranscript(segments) {
+      transcriptEl.innerHTML = "";
+      let lastSpeaker = null;
+      let turnEl = null;
+      let whatEl = null;
+      for (const seg of segments) {
+        if (seg.speaker !== lastSpeaker) {
+          turnEl = document.createElement("div");
+          turnEl.className = `turn sp-${speakerIndex(seg.speaker)}`;
+          const who = document.createElement("div");
+          who.className = "who";
+          who.textContent = seg.speaker;
+          whatEl = document.createElement("div");
+          whatEl.className = "what";
+          whatEl.textContent = seg.text;
+          turnEl.appendChild(who);
+          turnEl.appendChild(whatEl);
+          transcriptEl.appendChild(turnEl);
+          lastSpeaker = seg.speaker;
+        } else {
+          whatEl.textContent += " " + seg.text;
+        }
+      }
+    }
+
+    async function postJSON(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+      return data;
+    }
+
+    // Shared by both the file-upload button and the live recorder.
+    async function processAudio(blob, filename) {
+      transcribeBtn.disabled = true;
+      recordBtn.disabled = true;
+      setStatus("Transcribing locally… (the very first run also downloads models once).", false, true);
+      showProgress(true);
+      transcriptEl.innerHTML = '<div class="placeholder">Working…</div>';
+      notesEl.innerHTML = '<div class="placeholder">Working…</div>';
+
+      try {
+        const form = new FormData();
+        form.append("file", blob, filename);
+        const res = await fetch("/api/transcribe", { method: "POST", body: form });
+
+        // A non-streaming error (e.g. 400 bad file type) comes back as JSON.
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.detail || `Request failed (${res.status})`);
+        }
+
+        // Stream of newline-delimited JSON progress/result/error events.
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();  // keep any partial line
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const evt = JSON.parse(line);
+            if (evt.type === "progress") {
+              setProgress(evt.pct, evt.stage, evt.elapsed);
+            } else if (evt.type === "result") {
+              setProgress(100, "Done", evt.elapsed);
+              result = evt;
+            } else if (evt.type === "error") {
+              throw new Error(evt.detail);
+            }
+          }
+        }
+
+        if (!result) throw new Error("Transcription ended without a result.");
+
+        transcript = result.transcript || "";
+        renderTranscript(result.segments || []);
+        notesEl.innerHTML = marked.parse(result.notes || "");
+
+        chatMessages = [];
+        messagesEl.innerHTML = "";
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+        chatInput.placeholder = "Ask something about the recording…";
+        const speakers = result.num_speakers != null ? ` · ${result.num_speakers} speaker(s)` : "";
+        if (result.warning) {
+          setStatus(`Done in ${(result.elapsed || 0).toFixed(1)}s${speakers}. ⚠️ ${result.warning}`, true);
+        } else {
+          setStatus(`Done in ${(result.elapsed || 0).toFixed(1)}s${speakers}.`);
+        }
+      } catch (err) {
+        setStatus(err.message, true);
+        transcriptEl.innerHTML = '<div class="placeholder">—</div>';
+        notesEl.innerHTML = '<div class="placeholder">—</div>';
+      } finally {
+        transcribeBtn.disabled = false;
+        recordBtn.disabled = false;
+        setTimeout(() => showProgress(false), 1200);
+      }
+    }
+
+    transcribeBtn.addEventListener("click", () => {
+      const file = fileInput.files[0];
+      if (!file) { setStatus("Please choose a file first.", true); return; }
+      processAudio(file, file.name);
+    });
+
+    // ---- Live recording: mic + desktop audio, mixed into one .webm ----
+    let mediaRecorder = null;
+    let recStreams = [];        // raw streams to stop on finish
+    let recChunks = [];
+    let recAudioCtx = null;
+    let recTimerId = null;
+    let recStart = 0;
+
+    function stopRecStreams() {
+      recStreams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+      recStreams = [];
+      if (recAudioCtx) { recAudioCtx.close().catch(() => {}); recAudioCtx = null; }
+      if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+      recTimer.textContent = "";
+    }
+
+    function tickTimer() {
+      const s = Math.floor((Date.now() - recStart) / 1000);
+      const m = Math.floor(s / 60);
+      recTimer.textContent = `${m}:${String(s % 60).padStart(2, "0")}`;
+    }
+
+    async function startRecording() {
+      let micStream, desktopStream = null;
+
+      // Microphone (required).
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        setStatus("Microphone access was blocked. Allow it to record.", true);
+        return;
+      }
+
+      // Desktop/system audio (optional — Chromium shows a screen-share prompt).
+      try {
+        desktopStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        if (desktopStream.getAudioTracks().length === 0) {
+          desktopStream.getTracks().forEach((t) => t.stop());
+          desktopStream = null;
+          setStatus("No system audio captured — recording mic only. (Tip: pick 'Entire Screen' and tick 'Share system audio'.)", false);
+        }
+      } catch (err) {
+        // User cancelled or denied — fall back to mic only.
+        desktopStream = null;
+      }
+
+      // Mix sources into one track.
+      recAudioCtx = new AudioContext();
+      const dest = recAudioCtx.createMediaStreamDestination();
+      recStreams = [micStream];
+      recAudioCtx.createMediaStreamSource(micStream).connect(dest);
+      if (desktopStream) {
+        recStreams.push(desktopStream);
+        recAudioCtx.createMediaStreamSource(desktopStream).connect(dest);
+      }
+
+      recChunks = [];
+      mediaRecorder = new MediaRecorder(dest.stream, { mimeType: "audio/webm" });
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        stopRecStreams();
+        const blob = new Blob(recChunks, { type: "audio/webm" });
+        if (blob.size === 0) { setStatus("Recording was empty.", true); return; }
+        processAudio(blob, "recording.webm");
+      };
+      mediaRecorder.start();
+
+      // If the user stops the screen-share from the browser bar, end the recording.
+      if (desktopStream) {
+        desktopStream.getVideoTracks().forEach((t) => {
+          t.onended = () => { if (mediaRecorder && mediaRecorder.state === "recording") stopRecording(); };
+        });
+      }
+
+      recStart = Date.now();
+      tickTimer();
+      recTimerId = setInterval(tickTimer, 1000);
+      recordBtn.classList.add("recording");
+      recordBtn.textContent = "■ Stop";
+      transcribeBtn.disabled = true;
+      const src = desktopStream ? "mic + desktop audio" : "mic only";
+      setStatus(`Recording (${src})… press Stop when done.`, false);
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      recordBtn.classList.remove("recording");
+      recordBtn.textContent = "● Record";
+      transcribeBtn.disabled = false;
+    }
+
+    recordBtn.addEventListener("click", () => {
+      if (mediaRecorder && mediaRecorder.state === "recording") stopRecording();
+      else startRecording();
+    });
+
+    function appendMessage(role, content) {
+      const el = document.createElement("div");
+      el.className = `msg ${role}`;
+      el.textContent = content;
+      messagesEl.appendChild(el);
+      el.scrollIntoView({ behavior: "smooth", block: "end" });
+      return el;
+    }
+
+    async function sendChat() {
+      const text = chatInput.value.trim();
+      if (!text || !transcript) return;
+
+      chatInput.value = "";
+      appendMessage("user", text);
+      chatMessages.push({ role: "user", content: text });
+
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      const pending = appendMessage("assistant", "…");
+
+      try {
+        const data = await postJSON("/api/chat", { transcript, messages: chatMessages });
+        pending.textContent = data.reply || "(no reply)";
+        chatMessages.push({ role: "assistant", content: data.reply || "" });
+      } catch (err) {
+        pending.textContent = "⚠️ " + err.message;
+        pending.style.color = "var(--error)";
+      } finally {
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+      }
+    }
+
+    sendBtn.addEventListener("click", sendChat);
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendChat();
+    });
+  </script>
+</body>
+</html>
