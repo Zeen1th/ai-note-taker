@@ -137,6 +137,22 @@ and click **Transcribe**.
   (`WHISPER_MODEL=small`, `WHISPER_DEVICE=cuda`, `WHISPER_COMPUTE_TYPE=float16`)
   together with `qwen3:8b` so both fit in 12 GB.
 
+### GPU transcription (optional)
+Running WhisperX on the GPU is much faster than CPU. To enable it:
+
+1. Install the **CUDA build of PyTorch** (matching your CUDA version), e.g.:
+   ```bash
+   pip install --upgrade "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cu128
+   ```
+   (The CUDA build also runs CPU mode, so you don't need a separate environment.)
+2. Set in `.env`: `WHISPER_DEVICE=cuda` and `WHISPER_COMPUTE_TYPE=float16`.
+3. Restart. The app prints the detected GPU at startup, and exposes torch's
+   bundled cuDNN/cuBLAS to CTranslate2 automatically (no separate cuDNN install).
+
+If CUDA isn't actually available, the app warns and falls back to CPU. Watch
+VRAM: WhisperX on GPU shares the card with Ollama, so a heavy LLM + a game can
+exhaust 12 GB.
+
 ---
 
 ## How it works

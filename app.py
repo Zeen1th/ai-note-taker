@@ -54,6 +54,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 # Loaded once at startup (see lifespan).
 STATE: dict = {
+    "device": WHISPER_DEVICE,  # resolved effective device (cuda may fall back to cpu)
     "whisper_model": None,
     "diarize_model": None,
     "diarize_error": None,  # human-readable reason diarization is unavailable
@@ -69,16 +70,33 @@ async def lifespan(app: FastAPI):
     import torch
     import whisperx
 
-    # VAD / alignment / diarization run on PyTorch (CPU here) — let them use the
-    # cores too, not just the whisper transcription stage.
-    if WHISPER_DEVICE == "cpu":
+    # Resolve the effective device: if cuda was requested but isn't available,
+    # fall back to CPU with a clear warning rather than crashing.
+    device = WHISPER_DEVICE
+    if device == "cuda" and not torch.cuda.is_available():
+        print("[startup] WARNING: WHISPER_DEVICE=cuda but CUDA is unavailable to "
+              "PyTorch — falling back to CPU.")
+        device = "cpu"
+    STATE["device"] = device
+
+    if device == "cuda":
+        print(f"[startup] CUDA device: {torch.cuda.get_device_name(0)}")
+        # Make torch's bundled cuDNN/cuBLAS DLLs discoverable by CTranslate2
+        # (faster-whisper's engine) on Windows.
+        if hasattr(os, "add_dll_directory"):
+            libdir = os.path.join(os.path.dirname(torch.__file__), "lib")
+            if os.path.isdir(libdir):
+                os.add_dll_directory(libdir)
+    else:
+        # VAD / alignment / diarization run on PyTorch — let them use the cores
+        # too, not just the whisper transcription stage.
         torch.set_num_threads(WHISPER_THREADS)
 
     print(f"[startup] Loading WhisperX model '{WHISPER_MODEL}' "
-          f"(device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE}, "
+          f"(device={device}, compute_type={WHISPER_COMPUTE_TYPE}, "
           f"threads={WHISPER_THREADS})...")
     STATE["whisper_model"] = whisperx.load_model(
-        WHISPER_MODEL, WHISPER_DEVICE,
+        WHISPER_MODEL, device,
         compute_type=WHISPER_COMPUTE_TYPE, threads=WHISPER_THREADS,
         language=WHISPER_LANGUAGE,
     )
@@ -88,7 +106,7 @@ async def lifespan(app: FastAPI):
             from whisperx.diarize import DiarizationPipeline
             print(f"[startup] Loading diarization pipeline ({DIARIZE_MODEL})...")
             STATE["diarize_model"] = DiarizationPipeline(
-                model_name=DIARIZE_MODEL, token=HF_TOKEN, device=WHISPER_DEVICE
+                model_name=DIARIZE_MODEL, token=HF_TOKEN, device=STATE["device"]
             )
             print("[startup] Diarization ready.")
         except Exception as exc:  # noqa: BLE001
@@ -123,7 +141,7 @@ def _get_align_model(language_code: str):
     cache = STATE["align_cache"]
     if language_code not in cache:
         cache[language_code] = whisperx.load_align_model(
-            language_code=language_code, device=WHISPER_DEVICE
+            language_code=language_code, device=STATE["device"]
         )
     return cache[language_code]
 
@@ -294,7 +312,7 @@ async def transcribe(file: UploadFile = File(...)):
                 model_a, metadata = _get_align_model(result["language"])
                 result = whisperx.align(
                     result["segments"], model_a, metadata, audio,
-                    WHISPER_DEVICE, return_char_alignments=False,
+                    STATE["device"], return_char_alignments=False,
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"[transcribe] WARNING: alignment failed, continuing: {exc}")
