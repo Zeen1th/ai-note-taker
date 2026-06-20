@@ -1,8 +1,8 @@
 """Desktop launcher for AI Note-Taker.
 
-Starts the FastAPI/uvicorn server in a background thread and opens it inside a
-native, frameless window (pywebview + the OS WebView2 engine on Windows) with a
-custom title bar. The web UI is identical to the browser version.
+Starts the FastAPI/uvicorn server in a background thread and opens it in a native
+window (pywebview + the OS WebView2 engine on Windows). Adds a system-tray icon:
+closing the window hides it to the tray; the app keeps running in the background.
 
 Run with:  python desktop.py
 """
@@ -11,20 +11,23 @@ import threading
 import time
 import urllib.request
 
+import pystray
 import uvicorn
 import webview
+from PIL import Image, ImageDraw
 
 HOST = "127.0.0.1"
 PORT = 8000
 URL = f"http://{HOST}:{PORT}/"
 
-# The window lives at module scope (NOT as an attribute on the js_api object) so
-# pywebview doesn't try to serialize the window's native COM object into the JS
-# bridge — doing so triggers recursion / cross-thread WebView2 errors.
+# Module-level handles (NOT stored on a js_api object — pywebview would try to
+# serialize the window's native COM object and crash).
 window = None
+tray = None
+_quitting = False
 
 # Splash shown while the server loads its models (first start is slow).
-# Colours match the app's "blueprint" dark theme (navy paper + cyan grid).
+# Colours match the app's "blueprint" dark theme.
 LOADING_HTML = """
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
   html,body{height:100%;margin:0}
@@ -36,8 +39,7 @@ LOADING_HTML = """
        background-size:28px 28px}
   .wrap{text-align:center}
   .logo{font-size:34px;margin-bottom:14px}
-  .name{font-size:16px;font-weight:600;letter-spacing:.4px;
-        font-family:'Consolas',monospace}
+  .name{font-size:16px;font-weight:600;letter-spacing:.4px;font-family:'Consolas',monospace}
   .name b{color:#4d9fff}
   .sub{font-size:12px;color:#8298bd;margin-top:8px;font-family:'Consolas',monospace}
   .ring{width:26px;height:26px;margin:22px auto 0;border:3px solid #22304d;
@@ -52,28 +54,39 @@ LOADING_HTML = """
 """
 
 
-class Api:
-    """Window controls called from the custom title bar via window.pywebview.api."""
+def _tray_image():
+    """A small blueprint-blue mic glyph for the tray icon."""
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([4, 4, 60, 60], fill=(37, 99, 235, 255))      # blue disc
+    d.rounded_rectangle([26, 16, 38, 38], radius=6, fill=(255, 255, 255, 255))  # mic body
+    d.arc([23, 24, 41, 44], start=0, end=180, fill=(255, 255, 255, 255), width=3)  # cradle
+    d.line([32, 44, 32, 50], fill=(255, 255, 255, 255), width=3)  # stem
+    d.line([25, 50, 39, 50], fill=(255, 255, 255, 255), width=3)  # base
+    return img
 
-    def __init__(self):
-        self._maximized = False
 
-    def minimize(self):
-        if window:
-            window.minimize()
+def _show_window(icon=None, item=None):
+    if window:
+        window.show()
 
-    def toggle_maximize(self):
-        if not window:
-            return
-        if self._maximized:
-            window.restore()
-        else:
-            window.maximize()
-        self._maximized = not self._maximized
 
-    def close(self):
-        if window:
-            window.destroy()
+def _quit(icon=None, item=None):
+    global _quitting
+    _quitting = True
+    if tray:
+        tray.stop()
+    if window:
+        window.destroy()
+
+
+def _on_closing():
+    """Closing the window hides it to the tray instead of quitting."""
+    if _quitting:
+        return True       # allow the real close
+    if window:
+        window.hide()
+    return False          # cancel the close
 
 
 def _run_server():
@@ -94,21 +107,36 @@ def _on_ready():
 
 
 def main():
-    global window
+    global window, tray
+
     threading.Thread(target=_run_server, daemon=True).start()
 
     window = webview.create_window(
         "AI Note-Taker",
         html=LOADING_HTML,
-        js_api=Api(),
-        frameless=True,
-        easy_drag=False,
         width=1240,
         height=820,
         min_size=(940, 620),
         background_color="#0a1424",
     )
+    window.events.closing += _on_closing
+
+    tray = pystray.Icon(
+        "ai-note-taker",
+        _tray_image(),
+        "AI Note-Taker",
+        menu=pystray.Menu(
+            pystray.MenuItem("Open", _show_window, default=True),
+            pystray.MenuItem("Quit", _quit),
+        ),
+    )
+    tray.run_detached()
+
     webview.start(_on_ready)
+
+    # webview.start() returns once the window is really destroyed (Quit).
+    if tray:
+        tray.stop()
 
 
 if __name__ == "__main__":

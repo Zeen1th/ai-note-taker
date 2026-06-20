@@ -67,19 +67,6 @@
     }
     .eyebrow::before { content: ''; width: 20px; height: 2px; background: var(--accent); display: inline-block; }
 
-    /* ---- Desktop title bar (pywebview only) ---- */
-    .titlebar {
-      height: 38px; flex-shrink: 0; display: none; align-items: center;
-      background: var(--surface-2); border-bottom: 1px solid var(--line); user-select: none;
-    }
-    .tb-drag { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 14px; }
-    .tb-brand { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--heading); }
-    .tb-brand b { color: var(--accent); }
-    .tb-controls { display: flex; height: 100%; }
-    .tb-btn { width: 46px; height: 100%; border: none; background: transparent; color: var(--muted); font-size: 13px; display: flex; align-items: center; justify-content: center; }
-    .tb-btn:hover { background: var(--line); color: var(--heading); }
-    .tb-close:hover { background: #e0414b; color: #fff; }
-
     /* ---- App shell ---- */
     .app { flex: 1; display: flex; min-height: 0; }
     .sidebar {
@@ -229,15 +216,6 @@
   </style>
 </head>
 <body>
-  <div class="titlebar" id="titlebar">
-    <div class="tb-drag pywebview-drag-region"><span class="tb-brand">note<b>·</b>taker</span></div>
-    <div class="tb-controls">
-      <button class="tb-btn" id="tbMin" title="Minimize">&#8211;</button>
-      <button class="tb-btn" id="tbMax" title="Maximize">&#9633;</button>
-      <button class="tb-btn tb-close" id="tbClose" title="Close">&#10005;</button>
-    </div>
-  </div>
-
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
@@ -739,17 +717,6 @@
       const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(saved || (sysDark ? "dark" : "light"));
     })();
-
-    // ---- Desktop title bar (only when running inside pywebview) ----
-    function initDesktop() {
-      if (!window.pywebview || !window.pywebview.api) return;
-      $("titlebar").style.display = "flex";
-      $("tbMin").addEventListener("click", () => window.pywebview.api.minimize());
-      $("tbMax").addEventListener("click", () => window.pywebview.api.toggle_maximize());
-      $("tbClose").addEventListener("click", () => window.pywebview.api.close());
-    }
-    window.addEventListener("pywebviewready", initDesktop);
-    if (window.pywebview && window.pywebview.api) initDesktop();
   </script>
 </body>
 </html>
