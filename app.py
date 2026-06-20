@@ -14,9 +14,12 @@ free for the LLM (12GB VRAM plan).
 import json
 import os
 import re
+import sqlite3
 import tempfile
 import time
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -58,6 +61,9 @@ BATCH_SIZE = int(os.getenv("WHISPER_BATCH_SIZE", "16"))
 
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
+DATA_DIR = BASE_DIR / "data"
+AUDIO_DIR = DATA_DIR / "audio"
+DB_PATH = DATA_DIR / "sessions.db"
 
 # Loaded once at startup (see lifespan).
 STATE: dict = {
@@ -76,6 +82,8 @@ STATE: dict = {
 async def lifespan(app: FastAPI):
     import torch
     import whisperx
+
+    _init_db()
 
     # Resolve the effective device: if cuda was requested but isn't available,
     # fall back to CPU with a clear warning rather than crashing.
@@ -258,6 +266,111 @@ def _generate_notes(transcript: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Storage (SQLite) — persist sessions so they survive restarts
+# ---------------------------------------------------------------------------
+def _db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_db():
+    DATA_DIR.mkdir(exist_ok=True)
+    AUDIO_DIR.mkdir(exist_ok=True)
+    with _db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                title TEXT NOT NULL,
+                source TEXT,
+                duration REAL,
+                num_speakers INTEGER,
+                transcript TEXT,
+                segments TEXT,
+                notes TEXT,
+                audio_path TEXT
+            )
+        """)
+
+
+def _derive_title(transcript: str, source: str) -> str:
+    """A short human title from the first words of the transcript."""
+    first_line = next((ln for ln in transcript.splitlines() if ln.strip()), "")
+    # Drop the "Speaker N: " prefix for the title.
+    body = re.sub(r"^Speaker \d+:\s*", "", first_line).strip()
+    if body:
+        return (body[:60] + "…") if len(body) > 60 else body
+    return source or "Untitled recording"
+
+
+def _save_session(*, transcript, segments, notes, source, audio_bytes, ext):
+    """Persist a finished transcription; returns the row dict."""
+    sid = uuid.uuid4().hex[:12]
+    created_at = datetime.now(timezone.utc).isoformat()
+    duration = max((s.get("end", 0) for s in segments), default=0)
+    num_speakers = len({s["speaker"] for s in segments})
+    title = _derive_title(transcript, source)
+
+    audio_path = ""
+    if audio_bytes:
+        audio_file = AUDIO_DIR / f"{sid}{ext or '.bin'}"
+        audio_file.write_bytes(audio_bytes)
+        audio_path = str(audio_file.relative_to(BASE_DIR))
+
+    with _db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (id, created_at, title, source, duration, "
+            "num_speakers, transcript, segments, notes, audio_path) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (sid, created_at, title, source, duration, num_speakers,
+             transcript, json.dumps(segments), notes, audio_path),
+        )
+    return {"id": sid, "created_at": created_at, "title": title,
+            "num_speakers": num_speakers, "duration": duration, "source": source}
+
+
+def _list_sessions():
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, created_at, title, source, duration, num_speakers "
+            "FROM sessions ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _get_session(sid: str):
+    with _db() as conn:
+        row = conn.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["segments"] = json.loads(d["segments"] or "[]")
+    return d
+
+
+def _delete_session(sid: str) -> bool:
+    row = _get_session(sid)
+    if not row:
+        return False
+    if row.get("audio_path"):
+        audio_file = BASE_DIR / row["audio_path"]
+        try:
+            audio_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+    with _db() as conn:
+        conn.execute("DELETE FROM sessions WHERE id=?", (sid,))
+    return True
+
+
+def _rename_session(sid: str, title: str) -> bool:
+    with _db() as conn:
+        cur = conn.execute("UPDATE sessions SET title=? WHERE id=?", (title, sid))
+        return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 @app.get("/")
@@ -287,6 +400,7 @@ async def transcribe(file: UploadFile = File(...)):
     # Read the upload now; the heavy work happens in the (sync) stream generator,
     # which Starlette runs in a threadpool so it won't block the event loop.
     audio_bytes = await file.read()
+    source = file.filename or "recording"
 
     def event_stream():
         import whisperx
@@ -365,10 +479,20 @@ async def transcribe(file: UploadFile = File(...)):
                     "may have overlapping or very quiet speakers, or be a single voice."
                 )
 
+            # Persist the finished session so it survives restarts.
+            saved = None
+            try:
+                saved = _save_session(
+                    transcript=transcript, segments=segments, notes=notes,
+                    source=source, audio_bytes=audio_bytes, ext=ext,
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"[transcribe] WARNING: could not save session: {exc}")
+
             yield evt(
                 "result", pct=100,
                 transcript=transcript, segments=segments, notes=notes,
-                num_speakers=num_speakers, warning=warning,
+                num_speakers=num_speakers, warning=warning, session=saved,
             )
         except Exception as exc:  # noqa: BLE001
             yield evt("error", detail=f"Unexpected error: {exc}")
@@ -415,6 +539,54 @@ async def chat(req: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
     reply = _ollama_chat(system_prompt, messages)
     return {"reply": reply}
+
+
+# --- Session library ---
+class RenameRequest(BaseModel):
+    title: str
+
+
+@app.get("/api/sessions")
+async def list_sessions():
+    return _list_sessions()
+
+
+@app.get("/api/sessions/{sid}")
+async def get_session(sid: str):
+    row = _get_session(sid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    row.pop("audio_path", None)
+    row["audio_url"] = f"/api/sessions/{sid}/audio"
+    return row
+
+
+@app.get("/api/sessions/{sid}/audio")
+async def get_session_audio(sid: str):
+    row = _get_session(sid)
+    if not row or not row.get("audio_path"):
+        raise HTTPException(status_code=404, detail="No audio for this session.")
+    audio_file = BASE_DIR / row["audio_path"]
+    if not audio_file.exists():
+        raise HTTPException(status_code=404, detail="Audio file missing.")
+    return FileResponse(audio_file)
+
+
+@app.patch("/api/sessions/{sid}")
+async def rename_session(sid: str, req: RenameRequest):
+    title = req.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
+    if not _rename_session(sid, title):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    return {"id": sid, "title": title}
+
+
+@app.delete("/api/sessions/{sid}")
+async def delete_session(sid: str):
+    if not _delete_session(sid):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    return {"deleted": sid}
 
 
 # Static assets (after routes so "/" maps to index above).

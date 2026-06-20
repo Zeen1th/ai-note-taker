@@ -6,6 +6,7 @@ A fully **local** web app: upload an audio or video recording, and it
 2. **Generates structured notes** from the speaker-labeled transcript using a local LLM (Ollama / Qwen3).
 3. Shows the **transcript** and the **notes** in the browser.
 4. Lets you **chat** with the local LLM about the recording.
+5. **Saves every session** to a local library so you can revisit, rename, or delete past recordings.
 
 No external APIs, no API keys, no cloud calls — everything runs on your machine.
 Target hardware: a GPU with ~12 GB VRAM.
@@ -174,6 +175,9 @@ exhaust 12 GB.
 - `POST /api/chat` — body `{ transcript, messages }`. The transcript is sent in
   the system prompt with each request (the backend is **stateless**); returns
   `{ reply }`.
+- `GET/PATCH/DELETE /api/sessions[/{id}]` — the saved-session library. Each
+  finished transcription is stored in a local SQLite db (`data/sessions.db`)
+  with its audio under `data/audio/`, so it survives restarts.
 
 `SPEAKER_00 / SPEAKER_01 / …` from WhisperX are mapped to `Speaker 1 / Speaker 2`
 in order of first appearance.
@@ -181,13 +185,16 @@ in order of first appearance.
 ## Project structure
 
 ```
-app.py              FastAPI backend (WhisperX + Ollama)
+app.py              FastAPI backend (WhisperX + Ollama + session store)
 requirements.txt
 static/index.html   Single-page frontend
+docs/pipeline.svg   Pipeline diagram
+data/               Saved sessions (SQLite + audio) — git-ignored, created at runtime
 .env.example
 README.md
 ```
 
 ## Not included (future polish)
-Renaming speakers, setting the expected number of speakers, chunking very long
-recordings, and saving past sessions.
+Renaming speakers within the transcript, setting the expected number of speakers,
+chunking very long recordings, audio playback synced to the transcript, and
+search across saved sessions.
