@@ -32,6 +32,13 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Context window for the LLM. Ollama defaults qwen3 to 40960, which bloats the
+# KV cache (~11GB) and spills to CPU. 8192 fits the transcript + notes, stays
+# 100% on GPU, and is much faster. Raise only for very long recordings.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
+# qwen3 "thinks" before answering (slow, then discarded). Off by default for
+# speed; set OLLAMA_THINK=true to re-enable reasoning.
+OLLAMA_THINK = os.getenv("OLLAMA_THINK", "false").lower() in ("1", "true", "yes")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
@@ -203,11 +210,16 @@ def _ollama_chat(system_prompt: str, messages: list[dict]) -> str:
     """Call the local Ollama server and return cleaned text."""
     import ollama
 
+    # Disable qwen3's slow reasoning unless explicitly enabled (it's discarded).
+    if not OLLAMA_THINK:
+        system_prompt += " /no_think"
+
     client = ollama.Client(host=OLLAMA_HOST)
     try:
         response = client.chat(
             model=OLLAMA_MODEL,
             messages=[{"role": "system", "content": system_prompt}, *messages],
+            options={"num_ctx": OLLAMA_NUM_CTX},
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
