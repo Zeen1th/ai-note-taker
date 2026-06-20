@@ -8,7 +8,17 @@ A fully **local** web app: upload an audio or video recording, and it
 4. Lets you **chat** with the local LLM about the recording.
 
 No external APIs, no API keys, no cloud calls — everything runs on your machine.
-Target hardware: a GPU with ~12 GB VRAM (LLM on GPU, WhisperX on CPU).
+Target hardware: a GPU with ~12 GB VRAM.
+
+## Pipeline
+
+Each recording runs through these stages — green runs on the **GPU**, grey on the
+**CPU**. Transcription/alignment/diarization can run on either device
+(`WHISPER_DEVICE`); the LLM (notes + chat) always runs on the GPU via Ollama.
+
+<p align="center">
+  <img src="docs/pipeline.svg" alt="AI Note-Taker pipeline" width="560">
+</p>
 
 ---
 
