@@ -127,6 +127,18 @@ and click **Transcribe**.
 > ⏳ **First run is slow:** WhisperX downloads the Whisper + alignment +
 > diarization models the first time. They are cached afterwards.
 
+### Desktop app
+
+Prefer a native window instead of the browser? Run:
+
+```powershell
+.\.venv\Scripts\python.exe desktop.py
+```
+
+This launches the same app in a frameless desktop window (pywebview + the OS
+WebView2 engine) — it starts the server for you, shows a splash while models
+load, then opens the UI with a custom title bar. Close the window to quit.
+
 ---
 
 ## Configuration (`.env`)
@@ -186,6 +198,7 @@ in order of first appearance.
 
 ```
 app.py              FastAPI backend (WhisperX + Ollama + session store)
+desktop.py          Native desktop window launcher (pywebview)
 requirements.txt
 static/index.html   Single-page frontend
 docs/pipeline.svg   Pipeline diagram
