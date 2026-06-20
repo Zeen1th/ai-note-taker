@@ -4,3 +4,4 @@ python-multipart
 python-dotenv
 whisperx
 ollama
+pywebview        # desktop app window (run: python desktop.py)
