@@ -1,251 +1,228 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-palette="blueprint" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Note-Taker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
-      --bg: #0c0e12;
-      --surface: #14161c;
-      --surface-2: #1a1d25;
-      --surface-3: #20242e;
-      --border: #262a34;
-      --border-soft: #1d212a;
-      --text: #e8eaf0;
-      --text-dim: #969cab;
-      --text-faint: #6b7280;
-      --accent: #6e8bff;
-      --accent-hover: #5a78f0;
-      --accent-soft: rgba(110, 139, 255, 0.14);
-      --danger: #ff6b6b;
-      --ok: #4ade80;
-      --sp1: #6e8bff; --sp2: #4ade80; --sp3: #fbbf77; --sp4: #c79bff; --sp5: #ff8fb0;
-      --radius: 14px;
-      --shadow: 0 1px 2px rgba(0,0,0,0.3);
+      --font-head: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --transition: 240ms cubic-bezier(0.4,0,0.2,1);
+      --spring: 360ms cubic-bezier(0.34,1.56,0.64,1);
     }
-    * { box-sizing: border-box; }
+    /* Blueprint — light (navy ink on blue graph paper) */
+    html[data-palette="blueprint"][data-theme="light"] {
+      --bg:#eef3f9; --surface:#ffffff; --surface-2:#f4f7fb;
+      --text:#16213e; --muted:#5b6b86; --heading:#0f1830;
+      --accent:#2563eb; --accent-2:#06b6d4; --accent-soft:rgba(37,99,235,0.10);
+      --line:#cdd9ea; --grid:rgba(37,99,235,0.06);
+      --shadow:0 4px 22px rgba(22,33,62,0.09); --shadow-lift:0 14px 40px rgba(22,33,62,0.16);
+      --sp1:#2563eb; --sp2:#0891b2; --sp3:#d97706; --sp4:#7c3aed; --sp5:#db2777;
+    }
+    /* Blueprint — dark (navy paper, cyan grid) */
+    html[data-palette="blueprint"][data-theme="dark"] {
+      --bg:#0a1424; --surface:#0f1d33; --surface-2:#0c1830;
+      --text:#c5d6f0; --muted:#8298bd; --heading:#eaf2ff;
+      --accent:#4d9fff; --accent-2:#22d3ee; --accent-soft:rgba(77,159,255,0.16);
+      --line:#22304d; --grid:rgba(120,170,255,0.07);
+      --shadow:0 4px 22px rgba(0,0,0,0.5); --shadow-lift:0 16px 44px rgba(0,0,0,0.6);
+      --sp1:#4d9fff; --sp2:#22d3ee; --sp3:#fbbf24; --sp4:#a78bfa; --sp5:#f472b6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
-      margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI Variable", "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.55;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      -webkit-font-smoothing: antialiased;
+      font-family: var(--font-body); background: var(--bg); color: var(--text);
+      line-height: 1.55; display: flex; flex-direction: column; overflow: hidden;
+      -webkit-font-smoothing: antialiased; transition: background var(--transition), color var(--transition);
     }
+    /* graph-paper backdrop (the blueprint signature) */
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px),
+                        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    body > * { position: relative; z-index: 1; }
+    h1,h2,h3 { font-family: var(--font-head); color: var(--heading); line-height: 1.15; }
     button { font-family: inherit; cursor: pointer; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
+    ::selection { background: var(--accent); color: #fff; }
 
     ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-thumb {
-      background: var(--surface-3); border-radius: 6px;
-      border: 2px solid transparent; background-clip: padding-box;
-    }
-    ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
     ::-webkit-scrollbar-track { background: transparent; }
 
-    /* ---- Desktop title bar (shown only inside pywebview) ---- */
+    /* mono eyebrow label */
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--accent);
+      display: flex; align-items: center; gap: 0.55rem;
+    }
+    .eyebrow::before { content: ''; width: 20px; height: 2px; background: var(--accent); display: inline-block; }
+
+    /* ---- Desktop title bar (pywebview only) ---- */
     .titlebar {
-      height: 38px; flex-shrink: 0;
-      display: none; align-items: center;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border-soft);
-      user-select: none;
+      height: 38px; flex-shrink: 0; display: none; align-items: center;
+      background: var(--surface-2); border-bottom: 1px solid var(--line); user-select: none;
     }
     .tb-drag { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 14px; }
-    .tb-brand { font-size: 12.5px; font-weight: 600; color: var(--text-dim); letter-spacing: .2px; }
+    .tb-brand { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--heading); }
+    .tb-brand b { color: var(--accent); }
     .tb-controls { display: flex; height: 100%; }
-    .tb-btn {
-      width: 46px; height: 100%; border: none; background: transparent;
-      color: var(--text-dim); font-size: 13px; line-height: 1;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .tb-btn:hover { background: var(--surface-2); color: var(--text); }
+    .tb-btn { width: 46px; height: 100%; border: none; background: transparent; color: var(--muted); font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .tb-btn:hover { background: var(--line); color: var(--heading); }
     .tb-close:hover { background: #e0414b; color: #fff; }
 
     /* ---- App shell ---- */
     .app { flex: 1; display: flex; min-height: 0; }
-
     .sidebar {
-      width: 266px; flex-shrink: 0;
-      background: var(--surface);
-      border-right: 1px solid var(--border-soft);
-      display: flex; flex-direction: column; min-height: 0;
-      padding: 14px 12px;
+      width: 270px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--line); display: flex; flex-direction: column;
+      min-height: 0; padding: 16px 13px;
     }
-    .brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 14px; }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 2px 6px 10px; }
     .brand-mark {
-      width: 34px; height: 34px; border-radius: 10px;
-      background: linear-gradient(140deg, var(--accent), #8a7cff);
-      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+      background: linear-gradient(140deg, var(--accent), var(--accent-2));
+      display: flex; align-items: center; justify-content: center; font-size: 17px;
       box-shadow: var(--shadow);
     }
-    .brand-name { font-size: 14.5px; font-weight: 650; letter-spacing: .2px; }
-    .brand-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+    .brand-name { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--heading); }
+    .brand-name b { color: var(--accent); }
+    .brand-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 1px; letter-spacing: .04em; }
+
+    .status-pill {
+      font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent);
+      display: inline-flex; align-items: center; gap: 0.45rem; margin: 4px 6px 14px;
+      border: 1px solid var(--line); background: var(--surface-2); padding: 0.3rem 0.7rem; border-radius: 999px;
+    }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: ping 2s ease-out infinite; }
+    @keyframes ping { 0%{box-shadow:0 0 0 0 var(--accent-soft);} 70%{box-shadow:0 0 0 6px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
 
     .btn-new {
-      width: 100%; padding: 9px 12px; border-radius: 10px;
-      background: var(--accent); color: #fff; border: none;
-      font-size: 13.5px; font-weight: 600;
-      display: flex; align-items: center; justify-content: center; gap: 7px;
-      transition: background .15s;
+      width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid transparent;
+      background: var(--accent); color: #fff; font-family: var(--font-head);
+      font-size: 13.5px; font-weight: 600; display: flex; align-items: center;
+      justify-content: center; gap: 7px; transition: transform var(--spring), box-shadow var(--transition);
     }
-    .btn-new:hover { background: var(--accent-hover); }
+    .btn-new:hover { transform: translateY(-2px); box-shadow: 0 10px 24px var(--accent-soft); }
 
-    .lib-head {
-      font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .08em; color: var(--text-faint);
-      padding: 18px 8px 8px;
-    }
+    .lib-head { padding: 18px 8px 9px; }
     .session-list { flex: 1; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
     .session-item {
-      padding: 9px 10px; border-radius: 10px; cursor: pointer;
-      margin-bottom: 3px; border: 1px solid transparent; position: relative;
-      transition: background .12s;
+      padding: 9px 10px; border-radius: 9px; cursor: pointer; margin-bottom: 4px;
+      border: 1px solid transparent; position: relative; transition: background var(--transition), border-color var(--transition);
     }
-    .session-item:hover { background: var(--surface-2); }
-    .session-item.active { background: var(--accent-soft); border-color: rgba(110,139,255,.3); }
-    .session-item .s-title {
-      font-size: 13px; font-weight: 600; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 16px;
-    }
-    .session-item .s-meta { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
-    .session-item .s-del {
-      position: absolute; top: 8px; right: 7px; color: var(--text-faint);
-      font-size: 13px; line-height: 1; opacity: 0; padding: 2px; border-radius: 5px;
-    }
+    .session-item:hover { background: var(--surface-2); border-color: var(--line); }
+    .session-item.active { background: var(--accent-soft); border-color: var(--accent); }
+    .session-item .s-title { font-size: 13px; font-weight: 600; color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 16px; }
+    .session-item .s-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+    .session-item .s-del { position: absolute; top: 8px; right: 7px; color: var(--muted); font-size: 13px; opacity: 0; padding: 2px; border-radius: 5px; }
     .session-item:hover .s-del { opacity: 1; }
-    .session-item .s-del:hover { color: var(--danger); background: var(--surface-3); }
+    .session-item .s-del:hover { color: #e0414b; background: var(--surface); }
 
-    /* ---- Main column ---- */
+    /* ---- Main ---- */
     .main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .topbar {
       flex-shrink: 0; display: flex; align-items: center; gap: 10px;
-      padding: 14px 22px; border-bottom: 1px solid var(--border-soft);
-      flex-wrap: wrap;
+      padding: 13px 22px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+      background: color-mix(in srgb, var(--surface) 55%, transparent);
     }
     .file-btn {
-      display: inline-flex; align-items: center; gap: 8px; max-width: 240px;
-      padding: 8px 13px; border-radius: 9px;
-      background: var(--surface-2); border: 1px solid var(--border);
-      color: var(--text-dim); font-size: 13px; cursor: pointer; transition: border-color .15s;
+      display: inline-flex; align-items: center; gap: 8px; max-width: 230px;
+      padding: 8px 13px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);
+      color: var(--muted); font-family: var(--font-mono); font-size: 12.5px; cursor: pointer; transition: border-color var(--transition), color var(--transition);
     }
-    .file-btn:hover { border-color: var(--text-faint); }
+    .file-btn:hover { border-color: var(--accent); color: var(--accent); }
     .file-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .file-btn::before { content: "📎"; font-size: 13px; }
-    .btn-primary {
-      padding: 8px 16px; border-radius: 9px; border: none;
-      background: var(--accent); color: #fff; font-size: 13.5px; font-weight: 600;
-      transition: background .15s;
+    .btn {
+      font-family: var(--font-head); font-weight: 600; font-size: 13.5px; padding: 8px 16px;
+      border-radius: 8px; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+      transition: transform var(--spring), box-shadow var(--transition), background var(--transition), border-color var(--transition), color var(--transition);
     }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .div { color: var(--text-faint); font-size: 12px; }
-    .btn-record {
-      padding: 8px 15px; border-radius: 9px;
-      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
-      font-size: 13.5px; font-weight: 600; transition: all .15s;
-    }
-    .btn-record:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
-    .btn-record.recording {
-      background: var(--danger); color: #fff; border-color: var(--danger);
-      animation: pulse 1.5s ease-in-out infinite;
-    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 9px 22px var(--accent-soft); }
+    .btn-ghost { background: var(--surface); color: var(--heading); border-color: var(--line); }
+    .btn-ghost:hover:not(:disabled) { border-color: #e0414b; color: #e0414b; transform: translateY(-2px); }
+    .btn-ghost.recording { background: #e0414b; color: #fff; border-color: #e0414b; animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 50% { opacity: .62; } }
-    .rec-timer { font-size: 13px; color: var(--danger); font-variant-numeric: tabular-nums; min-width: 42px; font-weight: 600; }
+    .div { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+    .rec-timer { font-family: var(--font-mono); font-size: 12.5px; color: #e0414b; font-weight: 600; min-width: 40px; }
+    .theme-toggle {
+      margin-left: auto; width: 36px; height: 36px; border-radius: 9px;
+      border: 1px solid var(--line); background: var(--surface); color: var(--heading);
+      display: flex; align-items: center; justify-content: center; transition: var(--transition);
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .theme-toggle .sun { display: none; } html[data-theme="dark"] .theme-toggle .sun { display: block; }
+    .theme-toggle .moon { display: block; } html[data-theme="dark"] .theme-toggle .moon { display: none; }
 
     .main-scroll { flex: 1; overflow-y: auto; padding: 18px 22px 26px; }
 
-    .status { font-size: 13px; color: var(--text-dim); min-height: 18px; }
-    .status.error { color: var(--danger); }
-    .spinner {
-      display: inline-block; width: 13px; height: 13px;
-      border: 2px solid var(--surface-3); border-top-color: var(--accent);
-      border-radius: 50%; animation: spin .8s linear infinite;
-      vertical-align: -2px; margin-right: 7px;
-    }
+    .status { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); min-height: 18px; }
+    .status::before { content: '›'; color: var(--accent); margin-right: 7px; }
+    .status.error { color: #f87171; } .status.error::before { content: '✕'; color: #f87171; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 7px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .progress-wrap { display: none; margin: 12px 0 4px; }
-    .progress-bar {
-      height: 10px; background: var(--surface-2);
-      border: 1px solid var(--border); border-radius: 7px; overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%; width: 0%; border-radius: 7px;
-      background: linear-gradient(90deg, var(--accent), #7be0b0);
-      transition: width .35s ease;
-    }
-    .progress-label { font-size: 12px; color: var(--text-dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .progress-bar { height: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; border-radius: 7px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .35s ease; }
+    .progress-label { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 
-    /* ---- Content cards ---- */
-    .content {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-      align-items: start; margin-top: 14px;
-    }
+    /* ---- Cards ---- */
+    .content { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-top: 14px; }
     @media (max-width: 980px) { .content { grid-template-columns: 1fr; } }
     .card {
-      background: var(--surface); border: 1px solid var(--border-soft);
-      border-radius: var(--radius); padding: 16px 18px; min-height: 130px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
+      padding: 15px 18px 17px; min-height: 130px; box-shadow: var(--shadow);
+      transition: box-shadow var(--transition), border-color var(--transition);
     }
-    .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
-    .card-head h2 {
-      margin: 0; font-size: 11.5px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .08em; color: var(--text-faint);
-    }
-    .placeholder { color: var(--text-faint); font-size: 13.5px; }
-    .empty {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; color: var(--text-faint); padding: 28px 12px; gap: 8px;
-    }
-    .empty .ico { font-size: 26px; opacity: .8; }
+    .card:hover { box-shadow: var(--shadow-lift); }
+    .card-head { margin-bottom: 13px; }
+    .placeholder { color: var(--muted); font-size: 13.5px; }
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 30px 12px; gap: 9px; font-family: var(--font-mono); font-size: 12.5px; }
+    .empty .ico { font-size: 24px; opacity: .85; }
 
-    /* ---- Transcript ---- */
-    .turn { margin-bottom: 14px; padding-left: 12px; border-left: 2px solid var(--border); }
-    .turn .who {
-      font-weight: 650; font-size: 12.5px; margin-bottom: 2px;
-      display: flex; align-items: center; gap: 7px;
-    }
-    .turn .who::before {
-      content: ""; width: 7px; height: 7px; border-radius: 50%;
-      background: currentColor; display: inline-block;
-    }
-    .turn .what { white-space: pre-wrap; font-size: 14px; color: #d4d8e0; }
+    /* transcript */
+    .turn { margin-bottom: 14px; padding-left: 13px; border-left: 2px solid var(--line); }
+    .turn .who { font-family: var(--font-mono); font-weight: 600; font-size: 12px; margin-bottom: 3px; display: flex; align-items: center; gap: 7px; letter-spacing: .02em; }
+    .turn .who::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .turn .what { font-size: 14px; color: var(--text); white-space: pre-wrap; }
     .sp-1 { border-left-color: var(--sp1); } .sp-1 .who { color: var(--sp1); }
     .sp-2 { border-left-color: var(--sp2); } .sp-2 .who { color: var(--sp2); }
     .sp-3 { border-left-color: var(--sp3); } .sp-3 .who { color: var(--sp3); }
     .sp-4 { border-left-color: var(--sp4); } .sp-4 .who { color: var(--sp4); }
     .sp-5 { border-left-color: var(--sp5); } .sp-5 .who { color: var(--sp5); }
 
-    /* ---- Notes markdown ---- */
-    .notes { font-size: 14px; color: #d4d8e0; }
+    /* notes markdown */
+    .notes { font-size: 14px; color: var(--text); }
     .notes :first-child { margin-top: 0; }
-    .notes h1, .notes h2, .notes h3 { color: var(--text); line-height: 1.3; }
+    .notes h1,.notes h2,.notes h3 { color: var(--heading); line-height: 1.3; margin: 14px 0 8px; }
     .notes h1 { font-size: 19px; } .notes h2 { font-size: 16px; } .notes h3 { font-size: 14.5px; }
-    .notes ul, .notes ol { padding-left: 20px; }
-    .notes li { margin: 4px 0; }
-    .notes strong { color: var(--text); }
-    .notes code { background: var(--surface-3); padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
-    .notes blockquote { border-left: 3px solid var(--border); margin: 8px 0; padding-left: 12px; color: var(--text-dim); }
+    .notes ul,.notes ol { padding-left: 20px; } .notes li { margin: 4px 0; }
+    .notes strong { color: var(--heading); }
+    .notes code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+    .notes blockquote { border-left: 3px solid var(--accent); margin: 8px 0; padding-left: 12px; color: var(--muted); }
 
-    /* ---- Chat ---- */
+    /* chat */
     .chat-card { grid-column: 1 / -1; display: flex; flex-direction: column; }
     .messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; min-height: 8px; }
-    .msg {
-      padding: 10px 14px; border-radius: 14px; max-width: 76%;
-      white-space: pre-wrap; font-size: 14px; line-height: 1.5;
-    }
+    .msg { padding: 10px 14px; border-radius: 13px; max-width: 76%; white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
     .msg.user { background: var(--accent); color: #fff; align-self: flex-end; border-bottom-right-radius: 5px; }
-    .msg.assistant { background: var(--surface-2); align-self: flex-start; border-bottom-left-radius: 5px; }
+    .msg.assistant { background: var(--surface-2); border: 1px solid var(--line); align-self: flex-start; border-bottom-left-radius: 5px; }
     .chat-input { display: flex; gap: 9px; }
     .chat-input input {
-      flex: 1; background: var(--surface-2); border: 1px solid var(--border);
-      color: var(--text); padding: 11px 14px; border-radius: 10px; font-size: 14px;
-      outline: none; transition: border-color .15s;
+      flex: 1; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+      font-family: var(--font-body); padding: 11px 14px; border-radius: 9px; font-size: 14px;
+      outline: none; transition: border-color var(--transition);
     }
     .chat-input input:focus { border-color: var(--accent); }
     .chat-input input:disabled { opacity: .5; }
@@ -253,7 +230,7 @@
 </head>
 <body>
   <div class="titlebar" id="titlebar">
-    <div class="tb-drag pywebview-drag-region"><span class="tb-brand">🎙️ AI Note-Taker</span></div>
+    <div class="tb-drag pywebview-drag-region"><span class="tb-brand">note<b>·</b>taker</span></div>
     <div class="tb-controls">
       <button class="tb-btn" id="tbMin" title="Minimize">&#8211;</button>
       <button class="tb-btn" id="tbMax" title="Maximize">&#9633;</button>
@@ -266,14 +243,15 @@
       <div class="brand">
         <span class="brand-mark">🎙️</span>
         <div>
-          <div class="brand-name">AI Note-Taker</div>
-          <div class="brand-sub">Local &amp; private</div>
+          <div class="brand-name">note<b>·</b>taker</div>
+          <div class="brand-sub">v1 · blueprint</div>
         </div>
       </div>
+      <div class="status-pill"><span class="dot"></span> local · private</div>
       <button id="newBtn" class="btn-new">＋ New recording</button>
-      <div class="lib-head">Library</div>
+      <div class="lib-head eyebrow">Library</div>
       <div id="sessionList" class="session-list">
-        <div class="placeholder" style="padding: 8px 10px;">Loading…</div>
+        <div class="placeholder" style="padding: 8px 10px; font-family: var(--font-mono); font-size: 12px;">Loading…</div>
       </div>
     </aside>
 
@@ -283,10 +261,14 @@
           <input type="file" id="file" accept=".mp3,.mp4,.m4a,.wav,.mov,.webm" hidden />
           <span id="fileLabel">Choose file</span>
         </label>
-        <button id="transcribeBtn" class="btn-primary">Transcribe</button>
+        <button id="transcribeBtn" class="btn btn-primary">Transcribe</button>
         <span class="div">or</span>
-        <button id="recordBtn" class="btn-record">● Record</button>
+        <button id="recordBtn" class="btn btn-ghost">● Record</button>
         <span id="recTimer" class="rec-timer"></span>
+        <button class="theme-toggle" id="themeToggle" title="Toggle light / dark" aria-label="Toggle theme">
+          <svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.5V4 M12 20v2.5 M4 12H1.5 M22.5 12H20 M4.9 4.9 3.3 3.3 M20.7 20.7 19.1 19.1 M19.1 4.9 20.7 3.3 M3.3 20.7 4.9 19.1"/></svg>
+        </button>
       </div>
 
       <div class="main-scroll">
@@ -299,25 +281,25 @@
 
         <div class="content">
           <section class="card">
-            <div class="card-head"><h2>Transcript</h2></div>
+            <div class="card-head eyebrow">Transcript</div>
             <div id="transcript">
               <div class="empty"><span class="ico">📝</span><span>Upload or record audio to see the transcript.</span></div>
             </div>
           </section>
 
           <section class="card">
-            <div class="card-head"><h2>Notes</h2></div>
+            <div class="card-head eyebrow">Notes</div>
             <div id="notes" class="notes">
-              <div class="empty"><span class="ico">✨</span><span>AI-generated notes will appear here.</span></div>
+              <div class="empty"><span class="ico">✦</span><span>AI-generated notes will appear here.</span></div>
             </div>
           </section>
 
           <section class="card chat-card">
-            <div class="card-head"><h2>Chat about the recording</h2></div>
+            <div class="card-head eyebrow">Chat about the recording</div>
             <div id="messages" class="messages"></div>
             <div class="chat-input">
               <input type="text" id="chatInput" placeholder="Transcribe a recording first…" disabled />
-              <button id="sendBtn" class="btn-primary" disabled>Send</button>
+              <button id="sendBtn" class="btn btn-primary" disabled>Send</button>
             </div>
           </section>
         </div>
@@ -345,7 +327,7 @@
     const newBtn = $("newBtn");
 
     const EMPTY_TRANSCRIPT = '<div class="empty"><span class="ico">📝</span><span>Upload or record audio to see the transcript.</span></div>';
-    const EMPTY_NOTES = '<div class="empty"><span class="ico">✨</span><span>AI-generated notes will appear here.</span></div>';
+    const EMPTY_NOTES = '<div class="empty"><span class="ico">✦</span><span>AI-generated notes will appear here.</span></div>';
 
     let transcript = "";          // speaker-labeled transcript kept in memory
     let chatMessages = [];        // [{role, content}]
@@ -621,7 +603,7 @@
         chatMessages.push({ role: "assistant", content: data.reply || "" });
       } catch (err) {
         pending.textContent = "⚠️ " + err.message;
-        pending.style.color = "var(--danger)";
+        pending.style.color = "#f87171";
       } finally {
         chatInput.disabled = false;
         sendBtn.disabled = false;
@@ -644,7 +626,7 @@
     function renderSessionList(sessions) {
       sessionListEl.innerHTML = "";
       if (!sessions.length) {
-        sessionListEl.innerHTML = '<div class="placeholder" style="padding:8px 10px;">No saved sessions yet.</div>';
+        sessionListEl.innerHTML = '<div class="placeholder" style="padding:8px 10px; font-family: var(--font-mono); font-size: 12px;">No saved sessions yet.</div>';
         return;
       }
       for (const s of sessions) {
@@ -653,7 +635,7 @@
         const dur = s.duration ? `${Math.round(s.duration / 60)} min · ` : "";
         item.innerHTML =
           `<div class="s-title"></div>` +
-          `<div class="s-meta">${fmtDate(s.created_at)} · ${dur}${s.num_speakers || 0} speaker(s)</div>` +
+          `<div class="s-meta">${fmtDate(s.created_at)} · ${dur}${s.num_speakers || 0} spk</div>` +
           `<span class="s-del" title="Delete">✕</span>`;
         item.querySelector(".s-title").textContent = s.title;
         item.addEventListener("click", (e) => {
@@ -744,6 +726,19 @@
 
     newBtn.addEventListener("click", newSession);
     loadSessions();  // populate the library on page load
+
+    // ---- Theme (light / dark blueprint) ----
+    const root = document.documentElement;
+    function setTheme(t) { root.setAttribute("data-theme", t); try { localStorage.setItem("nt-theme", t); } catch (e) {} }
+    $("themeToggle").addEventListener("click", () => {
+      setTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    });
+    (function initTheme() {
+      let saved = null;
+      try { saved = localStorage.getItem("nt-theme"); } catch (e) {}
+      const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(saved || (sysDark ? "dark" : "light"));
+    })();
 
     // ---- Desktop title bar (only when running inside pywebview) ----
     function initDesktop() {
