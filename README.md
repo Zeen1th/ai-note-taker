@@ -135,9 +135,11 @@ Prefer a native window instead of the browser? Run:
 .\.venv\Scripts\python.exe desktop.py
 ```
 
-This launches the same app in a frameless desktop window (pywebview + the OS
-WebView2 engine) — it starts the server for you, shows a splash while models
-load, then opens the UI with a custom title bar. Close the window to quit.
+This launches the same app in a native desktop window (pywebview + the OS
+WebView2 engine) — it starts the server for you and shows a splash while models
+load. It also adds a **system-tray icon**: closing the window hides it to the
+tray (the app keeps running); click the tray icon to reopen, or right-click →
+**Quit** to exit fully.
 
 ---
 
