@@ -27,23 +27,21 @@ tray = None
 _quitting = False
 
 # Splash shown while the server loads its models (first start is slow).
-# Colours match the app's "blueprint" dark theme.
+# Colours match the app's default "aurora" dark theme.
 LOADING_HTML = """
 <!DOCTYPE html><html><head><meta charset="utf-8"><style>
   html,body{height:100%;margin:0}
-  body{background:#0a1424;color:#eaf2ff;display:flex;align-items:center;
+  body{background:#0c0c10;color:#fbfbfd;display:flex;align-items:center;
        justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;
        -webkit-user-select:none;user-select:none;
-       background-image:linear-gradient(rgba(120,170,255,0.07) 1px,transparent 1px),
-                        linear-gradient(90deg,rgba(120,170,255,0.07) 1px,transparent 1px);
-       background-size:28px 28px}
+       background-image:radial-gradient(520px 300px at 80% -10%,rgba(236,72,153,0.16),transparent 70%)}
   .wrap{text-align:center}
   .logo{font-size:34px;margin-bottom:14px}
   .name{font-size:16px;font-weight:600;letter-spacing:.4px;font-family:'Consolas',monospace}
-  .name b{color:#4d9fff}
-  .sub{font-size:12px;color:#8298bd;margin-top:8px;font-family:'Consolas',monospace}
-  .ring{width:26px;height:26px;margin:22px auto 0;border:3px solid #22304d;
-        border-top-color:#4d9fff;border-radius:50%;animation:s .8s linear infinite}
+  .name b{background:linear-gradient(135deg,#ec4899,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:12px;color:#9a9aa6;margin-top:8px;font-family:'Consolas',monospace}
+  .ring{width:26px;height:26px;margin:22px auto 0;border:3px solid #2c2c34;
+        border-top-color:#ec4899;border-radius:50%;animation:s .8s linear infinite}
   @keyframes s{to{transform:rotate(360deg)}}
 </style></head><body><div class="wrap">
   <div class="logo">🎙️</div>
@@ -117,7 +115,7 @@ def main():
         width=1240,
         height=820,
         min_size=(940, 620),
-        background_color="#0a1424",
+        background_color="#0c0c10",
     )
     window.events.closing += _on_closing
 
