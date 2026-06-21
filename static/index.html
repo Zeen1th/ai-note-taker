@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-palette="blueprint" data-theme="dark">
+<html lang="en" data-palette="aurora" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -743,7 +743,7 @@
       try { savedTheme = localStorage.getItem("nt-theme"); savedPalette = localStorage.getItem("nt-palette"); } catch (e) {}
       const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(savedTheme || (sysDark ? "dark" : "light"));
-      setPalette(PALETTES.includes(savedPalette) ? savedPalette : "blueprint");
+      setPalette(PALETTES.includes(savedPalette) ? savedPalette : "aurora");
     })();
   </script>
 </body>
