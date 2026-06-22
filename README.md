@@ -149,7 +149,8 @@ tray (the app keeps running); click the tray icon to reopen, or right-click →
 | ---------------------- | ------------------------ | ------------------------------------------------------- |
 | `OLLAMA_MODEL`         | `qwen3:14b`              | Use `qwen3:8b` for more speed.                          |
 | `OLLAMA_HOST`          | `http://localhost:11434` | Local Ollama server.                                    |
-| `WHISPER_MODEL`        | `base`                   | `tiny` / `base` / `small` / `medium` / `large-v3`.      |
+| `WHISPER_MODEL`        | `base`                   | `tiny`/`base`/`small`/`medium`/`large-v3`. `large-v3-turbo` = multilingual + fast; `distil-large-v3` = English-only, fastest. |
+| `WHISPER_LANGUAGE`     | *(empty)*                | Empty = **auto-detect** the language per recording. Set e.g. `en`/`ar` to force one. (English-only models like `distil-large-v3` ignore this.) |
 | `WHISPER_DEVICE`       | `cpu`                    | `cuda` to run WhisperX on the GPU (needs spare VRAM).   |
 | `WHISPER_COMPUTE_TYPE` | `int8`                   | Use `float16` on GPU.                                   |
 | `HF_TOKEN`             | *(empty)*                | Required for speaker diarization.                       |
