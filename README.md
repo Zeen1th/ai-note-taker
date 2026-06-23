@@ -126,6 +126,11 @@ and click **Transcribe**.
 
 > ⏳ **First run is slow:** WhisperX downloads the Whisper + alignment +
 > diarization models the first time. They are cached afterwards.
+>
+> ⚡ **Faster startup:** once the models are cached, set `HF_HUB_OFFLINE=1` in
+> `.env` to skip Hugging Face's per-launch update checks — this cuts boot time
+> from ~50s to ~12s. (Set it back to `0` if you change `WHISPER_MODEL` to one
+> you haven't downloaded yet.)
 
 ### Desktop app
 
