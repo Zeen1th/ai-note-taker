@@ -146,6 +146,12 @@ load. It also adds a **system-tray icon**: closing the window hides it to the
 tray (the app keeps running); click the tray icon to reopen, or right-click →
 **Quit** to exit fully.
 
+> It's **single-instance**: closing with ✕ only hides it to the tray, so
+> re-launching just reports "already running" — click the tray icon to reopen
+> instead. If the window ever fails to appear (a stale `WebView2` state after a
+> force-kill/crash), fully **Quit** from the tray (or end leftover `pythonw.exe`
+> in Task Manager), delete the `data/webview` folder, and relaunch.
+
 ---
 
 ## Configuration (`.env`)

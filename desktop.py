@@ -7,6 +7,7 @@ closing the window hides it to the tray; the app keeps running in the background
 Run with:  python desktop.py
 """
 
+import os
 import threading
 import time
 import urllib.request
@@ -19,6 +20,11 @@ from PIL import Image, ImageDraw
 HOST = "127.0.0.1"
 PORT = 8000
 URL = f"http://{HOST}:{PORT}/"
+
+# Dedicated WebView2 user-data folder (under the git-ignored data/ dir) so the
+# window doesn't share — and get stuck on — the system default folder's lock
+# state. Also makes localStorage (theme/palette choice) persist across launches.
+STORAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "webview")
 
 # Module-level handles (NOT stored on a js_api object — pywebview would try to
 # serialize the window's native COM object and crash).
@@ -104,8 +110,24 @@ def _on_ready():
         window.load_url(URL)
 
 
+def _already_running():
+    """True if another instance is already serving (avoid a 2nd window/server)."""
+    try:
+        urllib.request.urlopen(URL, timeout=1)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def main():
     global window, tray
+
+    # Single instance: a second window against a running one can fail to
+    # initialise WebView2 (HRESULT 0x8007139F). If it's already up, just exit —
+    # the existing window/tray icon is there.
+    if _already_running():
+        print("AI Note-Taker is already running (check the system tray).")
+        return
 
     threading.Thread(target=_run_server, daemon=True).start()
 
@@ -130,7 +152,7 @@ def main():
     )
     tray.run_detached()
 
-    webview.start(_on_ready)
+    webview.start(_on_ready, private_mode=False, storage_path=STORAGE)
 
     # webview.start() returns once the window is really destroyed (Quit).
     if tray:
