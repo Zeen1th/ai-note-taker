@@ -140,17 +140,20 @@ Prefer a native window instead of the browser? Run:
 .\.venv\Scripts\python.exe desktop.py
 ```
 
-This launches the same app in a native desktop window (pywebview + the OS
-WebView2 engine) — it starts the server for you and shows a splash while models
-load. It also adds a **system-tray icon**: closing the window hides it to the
-tray (the app keeps running); click the tray icon to reopen, or right-click →
-**Quit** to exit fully.
+This starts the server for you and opens the app in a **chromeless browser
+window** (Edge or Chrome in `--app` mode — no tabs or address bar, so it feels
+like a native app). It also adds a **system-tray icon**: closing the window
+leaves the server running in the tray; click the tray icon to reopen, or
+right-click → **Quit** to exit fully. On Windows, double-clicking
+`notetaker.bat` does the same (no console window).
 
-> It's **single-instance**: closing with ✕ only hides it to the tray, so
-> re-launching just reports "already running" — click the tray icon to reopen
-> instead. If the window ever fails to appear (a stale `WebView2` state after a
-> force-kill/crash), fully **Quit** from the tray (or end leftover `pythonw.exe`
-> in Task Manager), delete the `data/webview` folder, and relaunch.
+> **Why app-mode and not an embedded WebView2 control?** Embedding a WebView2
+> *controller* (e.g. via pywebview) is unreliable on some Windows setups — it
+> can fail with `HRESULT 0x8007139F` ("the group or resource is not in the
+> correct state") and the window silently never appears. Launching the browser
+> in app-mode uses the full browser's own process/profile management, which
+> doesn't hit that. If no Chromium browser is found, it falls back to opening
+> the app in your default browser.
 
 ---
 

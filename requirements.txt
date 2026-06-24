@@ -4,6 +4,5 @@ python-multipart
 python-dotenv
 whisperx
 ollama
-pywebview        # desktop app window (run: python desktop.py)
 pystray          # system-tray icon for the desktop app
 pillow           # tray icon image (also pulled in by whisperx)

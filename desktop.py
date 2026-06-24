@@ -1,61 +1,49 @@
 """Desktop launcher for AI Note-Taker.
 
-Starts the FastAPI/uvicorn server in a background thread and opens it in a native
-window (pywebview + the OS WebView2 engine on Windows). Adds a system-tray icon:
-closing the window hides it to the tray; the app keeps running in the background.
+Starts the FastAPI/uvicorn server in a background thread and opens the app in a
+chromeless **browser app window** (Edge/Chrome `--app=`), plus a system-tray icon.
 
-Run with:  python desktop.py
+Why app-mode instead of an embedded webview: embedding a WebView2 *controller*
+(via pywebview) proved unreliable on some Windows setups — `CreateCoreWebView2-
+Controller` intermittently fails with HRESULT 0x8007139F ("the group or resource
+is not in the correct state"), and the window silently never appears. Launching
+the system browser in app-mode uses the full browser's own (battle-tested)
+process + profile management, which does not hit that failure. The window is
+chromeless (no tabs/URL bar), so it still feels like a native app.
+
+Closing the window leaves the server running (the tray icon stays); click the
+tray icon to reopen, or right-click -> Quit to exit fully.
+
+Run with:  python desktop.py     (or the bundled notetaker.bat)
 """
 
 import os
+import subprocess
 import threading
 import time
 import urllib.request
+import webbrowser
 
 import pystray
 import uvicorn
-import webview
 from PIL import Image, ImageDraw
 
 HOST = "127.0.0.1"
 PORT = 8000
 URL = f"http://{HOST}:{PORT}/"
 
-# Dedicated WebView2 user-data folder (under the git-ignored data/ dir) so the
-# window doesn't share — and get stuck on — the system default folder's lock
-# state. Also makes localStorage (theme/palette choice) persist across launches.
-STORAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "webview")
+# Dedicated browser profile for the app window, kept on the local C: drive under
+# LOCALAPPDATA (a normal, conventional location) so it's isolated from the user's
+# main browser profile while still persisting their theme/palette choice.
+APP_PROFILE = os.path.join(
+    os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+    "AINoteTaker", "browser-profile",
+)
 
-# Module-level handles (NOT stored on a js_api object — pywebview would try to
-# serialize the window's native COM object and crash).
-window = None
+WINDOW_SIZE = "1240,820"
+
 tray = None
 _quitting = False
-
-# Splash shown while the server loads its models (first start is slow).
-# Colours match the app's default "aurora" dark theme.
-LOADING_HTML = """
-<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  html,body{height:100%;margin:0}
-  body{background:#0c0c10;color:#fbfbfd;display:flex;align-items:center;
-       justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;
-       -webkit-user-select:none;user-select:none;
-       background-image:radial-gradient(520px 300px at 80% -10%,rgba(236,72,153,0.16),transparent 70%)}
-  .wrap{text-align:center}
-  .logo{font-size:34px;margin-bottom:14px}
-  .name{font-size:16px;font-weight:600;letter-spacing:.4px;font-family:'Consolas',monospace}
-  .name b{background:linear-gradient(135deg,#ec4899,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{font-size:12px;color:#9a9aa6;margin-top:8px;font-family:'Consolas',monospace}
-  .ring{width:26px;height:26px;margin:22px auto 0;border:3px solid #2c2c34;
-        border-top-color:#ec4899;border-radius:50%;animation:s .8s linear infinite}
-  @keyframes s{to{transform:rotate(360deg)}}
-</style></head><body><div class="wrap">
-  <div class="logo">🎙️</div>
-  <div class="name">note<b>·</b>taker</div>
-  <div class="sub">starting the local engine…</div>
-  <div class="ring"></div>
-</div></body></html>
-"""
 
 
 def _tray_image():
@@ -70,9 +58,42 @@ def _tray_image():
     return img
 
 
-def _show_window(icon=None, item=None):
-    if window:
-        window.show()
+def _find_browser():
+    """Locate a Chromium browser that supports --app mode (Edge, then Chrome)."""
+    pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+    pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    local = os.environ.get("LOCALAPPDATA", "")
+    candidates = [
+        os.path.join(pf86, "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(pf, "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(pf, "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(pf86, "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(local, "Google", "Chrome", "Application", "chrome.exe"),
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
+def _open_app_window(icon=None, item=None):
+    """Open the app in a chromeless window; fall back to the default browser."""
+    browser = _find_browser()
+    if browser:
+        try:
+            os.makedirs(APP_PROFILE, exist_ok=True)
+            subprocess.Popen([
+                browser,
+                f"--app={URL}",
+                f"--user-data-dir={APP_PROFILE}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                f"--window-size={WINDOW_SIZE}",
+            ])
+            return
+        except Exception:  # noqa: BLE001 — fall back to a normal browser tab
+            pass
+    webbrowser.open(URL)
 
 
 def _quit(icon=None, item=None):
@@ -80,17 +101,6 @@ def _quit(icon=None, item=None):
     _quitting = True
     if tray:
         tray.stop()
-    if window:
-        window.destroy()
-
-
-def _on_closing():
-    """Closing the window hides it to the tray instead of quitting."""
-    if _quitting:
-        return True       # allow the real close
-    if window:
-        window.hide()
-    return False          # cancel the close
 
 
 def _run_server():
@@ -98,65 +108,47 @@ def _run_server():
     uvicorn.Server(config).run()
 
 
-def _on_ready():
-    """Poll until the server answers, then swap the splash for the app."""
-    for _ in range(240):  # up to ~2 min for first-run model downloads
-        try:
-            urllib.request.urlopen(URL, timeout=1)
-            break
-        except Exception:  # noqa: BLE001
-            time.sleep(0.5)
-    if window:
-        window.load_url(URL)
-
-
-def _already_running():
-    """True if another instance is already serving (avoid a 2nd window/server)."""
+def _server_ready(timeout=1.0):
     try:
-        urllib.request.urlopen(URL, timeout=1)
+        urllib.request.urlopen(URL, timeout=timeout)
         return True
     except Exception:  # noqa: BLE001
         return False
 
 
-def main():
-    global window, tray
+def _wait_then_open():
+    """Poll until the server answers (models load on startup), then open the window."""
+    for _ in range(360):  # up to ~3 min for first-run model downloads
+        if _quitting:
+            return
+        if _server_ready():
+            _open_app_window()
+            return
+        time.sleep(0.5)
 
-    # Single instance: a second window against a running one can fail to
-    # initialise WebView2 (HRESULT 0x8007139F). If it's already up, just exit —
-    # the existing window/tray icon is there.
-    if _already_running():
-        print("AI Note-Taker is already running (check the system tray).")
+
+def main():
+    global tray
+
+    # Single instance: if a server is already up, just open another window
+    # against it and exit — the existing process owns the tray icon.
+    if _server_ready():
+        _open_app_window()
         return
 
     threading.Thread(target=_run_server, daemon=True).start()
-
-    window = webview.create_window(
-        "AI Note-Taker",
-        html=LOADING_HTML,
-        width=1240,
-        height=820,
-        min_size=(940, 620),
-        background_color="#0c0c10",
-    )
-    window.events.closing += _on_closing
+    threading.Thread(target=_wait_then_open, daemon=True).start()
 
     tray = pystray.Icon(
         "ai-note-taker",
         _tray_image(),
-        "AI Note-Taker",
+        "AI Note-Taker — starting…",
         menu=pystray.Menu(
-            pystray.MenuItem("Open", _show_window, default=True),
+            pystray.MenuItem("Open", _open_app_window, default=True),
             pystray.MenuItem("Quit", _quit),
         ),
     )
-    tray.run_detached()
-
-    webview.start(_on_ready, private_mode=False, storage_path=STORAGE)
-
-    # webview.start() returns once the window is really destroyed (Quit).
-    if tray:
-        tray.stop()
+    tray.run()  # blocks until _quit() stops it; the daemon server thread then exits
 
 
 if __name__ == "__main__":
