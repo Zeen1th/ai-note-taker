@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-palette="aurora" data-theme="dark">
+<html lang="en" data-palette="notebook" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Note-Taker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
@@ -58,6 +58,36 @@
       --glow:rgba(219,39,119,0.06);
       --grad:linear-gradient(135deg,#db2777,#7c3aed,#3b82f6);
       --sp1:#db2777; --sp2:#7c3aed; --sp3:#3b82f6; --sp4:#0891b2; --sp5:#d97706;
+    }
+    /* ---- NOTEBOOK (warm paper + terracotta ink) ---- */
+    html[data-palette="notebook"] {
+      --font-head: 'Newsreader', Georgia, serif;
+      --font-body: 'Onest', system-ui, sans-serif;
+      --wordmark: 'Caveat', cursive;
+    }
+    html[data-palette="notebook"][data-theme="light"] {
+      --bg: radial-gradient(1200px 700px at 50% -10%, #efe8d8, #e2d9c6);
+      --surface:#fbf8f0; --surface-2:#f3ecda; --surface-3:#eae1cb;
+      --text:#3b3325; --muted:#948a74; --heading:#2a2317;
+      --accent:#a8432a; --accent-2:#c8623f; --accent-soft:rgba(168,67,42,0.11);
+      --line:rgba(70,58,36,0.16); --grid:transparent;
+      --shadow:0 8px 24px rgba(90,74,48,0.16); --shadow-lift:0 16px 40px rgba(90,74,48,0.22);
+      --glow:rgba(168,67,42,0.10);
+      --grad:linear-gradient(135deg,#c8623f,#a8432a);
+      --sp1:#a8432a; --sp2:#2f5599; --sp3:#3f7d4e; --sp4:#7a4fa3; --sp5:#b5852a;
+      --paper-dot:rgba(70,58,36,0.16); --margin-rule:rgba(168,67,42,0.38);
+    }
+    html[data-palette="notebook"][data-theme="dark"] {
+      --bg: radial-gradient(1200px 700px at 50% -10%, #26211a, #1a1611);
+      --surface:#241f18; --surface-2:#2b261d; --surface-3:#332d22;
+      --text:#e8dfca; --muted:#a99c80; --heading:#f6efdd;
+      --accent:#e0895f; --accent-2:#c8623f; --accent-soft:rgba(224,137,95,0.15);
+      --line:rgba(226,208,170,0.14); --grid:transparent;
+      --shadow:0 8px 24px rgba(0,0,0,0.45); --shadow-lift:0 18px 46px rgba(0,0,0,0.55);
+      --glow:rgba(224,137,95,0.12);
+      --grad:linear-gradient(135deg,#e0895f,#c8623f);
+      --sp1:#e0895f; --sp2:#7ba3d4; --sp3:#84c39a; --sp4:#b79ad8; --sp5:#d8b061;
+      --paper-dot:rgba(226,208,170,0.12); --margin-rule:rgba(224,137,95,0.40);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
@@ -207,6 +237,26 @@
 
     @media (max-width: 1180px) { .rightrail { width: 300px; } }
     @media (max-width: 1000px) { .rightrail { display: none; } }
+
+    /* ---- NOTEBOOK presentation touches (paper, serif, handwriting) ---- */
+    html[data-palette="notebook"] .grad-top { display: none; }
+    html[data-palette="notebook"][data-theme="light"] .sidebar { background: #efe9db; }
+    html[data-palette="notebook"][data-theme="light"] .rightrail { background: #f2ecdd; }
+    html[data-palette="notebook"] .brand-name { font-family: var(--wordmark); font-size: 23px; font-weight: 700; letter-spacing: .3px; }
+    html[data-palette="notebook"] .brand-name b { color: var(--accent); }
+    html[data-palette="notebook"] .crumb-title,
+    html[data-palette="notebook"] .rail-title,
+    html[data-palette="notebook"] .btn,
+    html[data-palette="notebook"] .btn-new { font-family: var(--font-body); font-weight: 600; }
+    html[data-palette="notebook"] .notes {
+      background-image: radial-gradient(var(--paper-dot) 1.2px, transparent 1.2px);
+      background-size: 22px 22px; background-position: 6px 6px;
+      border-left: 2px solid var(--margin-rule); border-radius: 6px;
+      padding: 16px 18px 18px 24px;
+    }
+    html[data-palette="notebook"] .notes h1,
+    html[data-palette="notebook"] .notes h2,
+    html[data-palette="notebook"] .notes h3 { font-family: var(--font-head); }
   </style>
 </head>
 <body>
@@ -218,7 +268,7 @@
         <span class="brand-mark">🎙️</span>
         <div>
           <div class="brand-name">note<b>·</b>taker</div>
-          <div class="brand-sub">v1 · blueprint</div>
+          <div class="brand-sub">v1 · notebook</div>
         </div>
       </div>
       <div class="status-pill"><span class="dot"></span> local · private</div>
@@ -244,7 +294,7 @@
         <span class="div">or</span>
         <button id="recordBtn" class="btn btn-ghost">● Record</button>
         <span id="recTimer" class="rec-timer"></span>
-        <button class="theme-toggle" id="paletteToggle" title="Switch palette (Blueprint / Aurora)" aria-label="Switch palette">
+        <button class="theme-toggle" id="paletteToggle" title="Switch palette (Notebook / Aurora / Blueprint)" aria-label="Switch palette">
           <span class="swatch"></span>
         </button>
         <button class="theme-toggle" id="themeToggle" title="Toggle light / dark" aria-label="Toggle theme">
@@ -728,7 +778,7 @@
 
     // ---- Theme (light/dark) + palette (Blueprint / Aurora) ----
     const root = document.documentElement;
-    const PALETTES = ["blueprint", "aurora"];
+    const PALETTES = ["notebook", "aurora", "blueprint"];
     function setTheme(t) { root.setAttribute("data-theme", t); try { localStorage.setItem("nt-theme", t); } catch (e) {} }
     function setPalette(p) { root.setAttribute("data-palette", p); try { localStorage.setItem("nt-palette", p); } catch (e) {} }
     $("themeToggle").addEventListener("click", () => {
@@ -742,8 +792,10 @@
       let savedTheme = null, savedPalette = null;
       try { savedTheme = localStorage.getItem("nt-theme"); savedPalette = localStorage.getItem("nt-palette"); } catch (e) {}
       const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setTheme(savedTheme || (sysDark ? "dark" : "light"));
-      setPalette(PALETTES.includes(savedPalette) ? savedPalette : "aurora");
+      const palette = PALETTES.includes(savedPalette) ? savedPalette : "notebook";
+      // Notebook is a paper theme — default it to light unless the user picked otherwise.
+      setTheme(savedTheme || (palette === "notebook" ? "light" : (sysDark ? "dark" : "light")));
+      setPalette(palette);
     })();
   </script>
 </body>

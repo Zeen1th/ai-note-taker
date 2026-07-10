@@ -140,20 +140,21 @@ Prefer a native window instead of the browser? Run:
 .\.venv\Scripts\python.exe desktop.py
 ```
 
-This starts the server for you and opens the app in a **chromeless browser
-window** (Edge or Chrome in `--app` mode — no tabs or address bar, so it feels
-like a native app). It also adds a **system-tray icon**: closing the window
-leaves the server running in the tray; click the tray icon to reopen, or
-right-click → **Quit** to exit fully. On Windows, double-clicking
-`notetaker.bat` does the same (no console window).
+This starts the server for you and opens the app in a **real native window**
+(pywebview + the OS WebView2 engine) — its own title bar, taskbar entry and
+icon, no browser chrome. It shows an instant splash while the models load and
+swaps to the app once the server is ready. It also adds a **system-tray icon**:
+closing the window hides it to the tray (the server keeps running); click the
+tray icon to reopen, or right-click → **Quit** to exit fully. On Windows,
+double-clicking `notetaker.bat` does the same (no console window).
 
-> **Why app-mode and not an embedded WebView2 control?** Embedding a WebView2
-> *controller* (e.g. via pywebview) is unreliable on some Windows setups — it
-> can fail with `HRESULT 0x8007139F` ("the group or resource is not in the
-> correct state") and the window silently never appears. Launching the browser
-> in app-mode uses the full browser's own process/profile management, which
-> doesn't hit that. If no Chromium browser is found, it falls back to opening
-> the app in your default browser.
+> **Reliability / fallback.** Embedding the WebView2 *controller* occasionally
+> fails on Windows (`HRESULT 0x8007139F`, "the group or resource is not in the
+> correct state") and the native window won't appear. When that happens the
+> launcher automatically falls back to a chromeless browser app-window
+> (Edge/Chrome `--app=`, or your default browser) so the app *always* opens.
+> Under `pythonw` (no console) startup is logged to
+> `%LOCALAPPDATA%\AINoteTaker\desktop.log` for troubleshooting.
 
 ---
 
