@@ -6,7 +6,7 @@
 <title>Board — note·taker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/kinpaku.css">
 <style>
   /* ---------- Miro-style node canvas ---------- */
@@ -86,20 +86,20 @@
 
   .node-head {
     display: flex; align-items: center; gap: 6px;
-    padding: 6px 8px; cursor: grab; border-bottom: 1px solid var(--border);
+    padding: 7px 10px; cursor: grab; border-bottom: 1px solid var(--border);
     background: var(--surface-2);
   }
   .node-head:active { cursor: grabbing; }
-  .node-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0;
-    pointer-events: none; /* decorative — never the grab target */ }
-  .node-title { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 0.62rem;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+  .node-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0;
+    pointer-events: none; }
+  .node-title { flex: 1; min-width: 0;
+    font-family: var(--font-body); font-size: 0.92rem; font-weight: 600;
+    color: var(--fg);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     outline: none;
-    pointer-events: none; /* transparent to the mouse so the bar grabs, not the text;
-                              re-enabled below when actively editing */ }
+    pointer-events: none; }
   .node-title[contenteditable="true"] { pointer-events: auto; }
-  .node-title[contenteditable="true"]:focus { color: var(--fg); }
+  .node-title[contenteditable="true"]:focus { color: var(--accent); }
   .node-tools { display: flex; gap: 1px; opacity: 0; transition: opacity var(--ease); }
   .node:hover .node-tools, .node.selected .node-tools { opacity: 1; }
   .node-tool { width: 22px; height: 22px; display: grid; place-items: center;
@@ -109,13 +109,49 @@
   .node-tool.del:hover { color: var(--warn); }
 
   .node-body {
-    flex: 1; font-size: 0.86rem; line-height: 1.6; color: var(--text);
-    padding: 9px 12px; outline: none; overflow-y: auto; user-select: text;
-    overflow-wrap: anywhere; min-height: 30px;
+    flex: 1; font-size: 0.95rem; line-height: 1.65; color: var(--text);
+    padding: 10px 14px; outline: none; overflow-y: auto; user-select: text;
+    overflow-wrap: anywhere; min-height: 30px; dir: auto;
   }
   .node-body:empty::before { content: attr(data-placeholder); color: var(--faint); }
   .node.kind-image .node-body { padding: 0; display: flex; align-items: center; justify-content: center; }
   .node.kind-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* rich text inside node bodies */
+  .node-body h1 { font-size: 1.15rem; font-weight: 700; margin: 6px 0 2px; line-height: 1.3; }
+  .node-body h2 { font-size: 1rem; font-weight: 600; margin: 4px 0 2px; line-height: 1.3; }
+  .node-body h3 { font-size: 0.9rem; font-weight: 600; margin: 4px 0 2px; line-height: 1.3; }
+  .node-body ul { padding-left: 18px; margin: 4px 0; }
+  .node-body ol { padding-left: 18px; margin: 4px 0; }
+  .node-body li { margin: 1px 0; }
+  .node-body strong { font-weight: 700; }
+  .node-body em { font-style: italic; }
+  .node-body code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--surface-3); padding: 1px 4px; border-radius: var(--r-xs); }
+  .node-body blockquote { border-left: 2px solid var(--accent); margin: 4px 0; padding-left: 8px; color: var(--muted); }
+  .node-body img { max-width: 100%; border-radius: var(--r-sm); margin: 4px 0; display: block; }
+  .node-body img.img-selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* formatting toolbar */
+  .node-toolbar {
+    display: none; flex-wrap: wrap; gap: 1px; padding: 2px 4px;
+    border-bottom: 1px solid var(--border); background: var(--surface-2);
+  }
+  .node:focus-within .node-toolbar { display: flex; }
+  .tb-btn {
+    width: 24px; height: 22px; display: grid; place-items: center;
+    border: none; background: transparent; color: var(--muted); border-radius: var(--r-xs);
+    cursor: pointer; font-size: 0.72rem; font-family: var(--font-body);
+    transition: background var(--ease), color var(--ease);
+  }
+  .tb-btn:hover { color: var(--fg); background: var(--surface-3); }
+  .tb-btn.active { background: var(--accent); color: var(--on-accent); }
+  .tb-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; align-self: center; }
+
+  /* inline image resize handles */
+  .img-resize-handle {
+    position: absolute; width: 12px; height: 12px; background: var(--accent);
+    border: 2px solid var(--surface); border-radius: 50%; cursor: nwse-resize;
+    z-index: 10; display: none;
+  }
 
   /* resize handle */
   .node-resize {
@@ -125,19 +161,15 @@
   }
   .node:hover .node-resize, .node.selected .node-resize { opacity: 0.6; }
 
-  /* anchor dots — shown on hover when connect tool active */
-  .node-anchor {
-    position: absolute; width: 11px; height: 11px; border-radius: 50%;
-    background: var(--surface); border: 2px solid var(--accent);
-    opacity: 0; transition: opacity var(--ease); transform: translate(-50%, -50%);
-    cursor: crosshair; z-index: 2;
+  /* connect zone — the ENTIRE node border becomes a connect-drag area.
+     No more hunting for tiny dots: grab anywhere on the node's edge. */
+  .node-connect-zone {
+    position: absolute; inset: 0; border-radius: var(--r-md);
+    display: none; cursor: crosshair; z-index: 3;
   }
-  .node-anchor:hover { background: var(--accent); }
-  .node-anchor.top { left: 50%; top: 0; }
-  .node-anchor.right { left: 100%; top: 50%; }
-  .node-anchor.bottom { left: 50%; top: 100%; }
-  .node-anchor.left { left: 0; top: 50%; }
-  body.tool-connect .node:hover .node-anchor { opacity: 1; }
+  body.tool-connect .node .node-connect-zone { display: block; }
+  body.tool-connect .node:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-md); }
+  body.tool-connect .node-head { cursor: crosshair; }
 
   /* color popover */
   .color-pop { position: absolute; display: none; gap: 6px; padding: 8px;
@@ -306,7 +338,8 @@
               <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
               <span class="zoom-label" id="zoomLabel">100%</span>
               <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
-              <button class="zoom-btn" id="zoomFit" title="Reset view" style="font-size:0.7rem;">⟲</button>
+              <button class="zoom-btn" id="zoomFit" title="Fit all nodes in view" style="font-size:0.7rem;">⤢</button>
+              <button class="zoom-btn" id="zoomHome" title="Reset to 100%" style="font-size:0.7rem;">⌂</button>
             </div>
           </div>
 
@@ -558,23 +591,28 @@ function createNodeEl(n) {
   const head = document.createElement('div');
   head.className = 'node-head';
   const dot = document.createElement('span'); dot.className = 'node-dot'; dot.style.background = colorOf(n.c);
-  const title = document.createElement('span'); title.className = 'node-title'; title.textContent = nodeTitle(n); title.title = 'Double-click to rename';
+  const title = document.createElement('span'); title.className = 'node-title'; title.textContent = nodeTitle(n); title.title = 'Double-click to rename'; title.dir = 'auto';
   const tools = document.createElement('div'); tools.className = 'node-tools';
   const colorBtn = mkTool('color', '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/></svg>', 'Color');
   const delBtn = mkTool('del', '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>', 'Delete');
   tools.appendChild(colorBtn); tools.appendChild(delBtn);
   head.appendChild(dot); head.appendChild(title); head.appendChild(tools);
 
-  let body;
+  let body, toolbar = null;
   if (n.kind === 'image' && n.image) {
     body = document.createElement('div'); body.className = 'node-body';
     const img = document.createElement('img'); img.src = n.image; img.draggable = false;
     body.appendChild(img);
   } else {
+    // Rich text note: toolbar + contentEditable body.
+    toolbar = mkToolbar();
     body = document.createElement('div'); body.className = 'node-body';
     body.contentEditable = 'true'; body.spellcheck = false;
     body.dataset.placeholder = 'Type…';
-    body.innerText = n.text || '';
+    // Render HTML if the text looks like HTML; otherwise treat as plain text (old data).
+    const t = n.text || '';
+    if (t.trim().startsWith('<')) body.innerHTML = t;
+    else body.innerText = t;
   }
 
   // anchors (for connect tool)
@@ -583,13 +621,78 @@ function createNodeEl(n) {
   // resize handle
   const resize = document.createElement('div'); resize.className = 'node-resize';
 
-  el.appendChild(bar); el.appendChild(head); el.appendChild(body);
-  el.appendChild(aT); el.appendChild(aR); el.appendChild(aB); el.appendChild(aL);
+  // connect zone (replaces tiny anchor dots — grab anywhere on the node)
+  const connectZone = document.createElement('div'); connectZone.className = 'node-connect-zone';
+
+  el.appendChild(bar); el.appendChild(head);
+  if (toolbar) el.appendChild(toolbar);
+  el.appendChild(body);
+  el.appendChild(connectZone);
   el.appendChild(resize);
   world.appendChild(el);
 
-  bindNode(el, n, { head, body, title, colorBtn, delBtn, resize, bar, dot, anchors: [aT, aR, aB, aL] });
+  bindNode(el, n, { head, body, title, colorBtn, delBtn, resize, bar, dot, connectZone, toolbar });
   return el;
+}
+
+/* ---- formatting toolbar factory ---- */
+function mkToolbar() {
+  const tb = document.createElement('div'); tb.className = 'node-toolbar';
+  const buttons = [
+    { cmd: 'bold',          html: '<b>B</b>',   title: 'Bold (Ctrl+B)' },
+    { cmd: 'italic',        html: '<i>I</i>',   title: 'Italic (Ctrl+I)' },
+    { cmd: 'strikeThrough', html: '<s>S</s>',   title: 'Strikethrough' },
+    { sep: true },
+    { cmd: 'formatBlock', arg: '<h1>', html: 'H1', title: 'Heading 1' },
+    { cmd: 'formatBlock', arg: '<h2>', html: 'H2', title: 'Heading 2' },
+    { cmd: 'formatBlock', arg: '<p>',  html: '¶',  title: 'Paragraph' },
+    { sep: true },
+    { cmd: 'insertUnorderedList', html: '•', title: 'Bullet list' },
+    { sep: true },
+    { cmd: 'fontSizeDown', html: 'A−', title: 'Smaller text' },
+    { cmd: 'fontSizeUp',   html: 'A+', title: 'Larger text' },
+    { sep: true },
+    { cmd: 'insertImageInline', html: '🖼', title: 'Insert image' },
+  ];
+  buttons.forEach((b) => {
+    if (b.sep) { const s = document.createElement('div'); s.className = 'tb-sep'; tb.appendChild(s); return; }
+    const btn = document.createElement('button');
+    btn.className = 'tb-btn'; btn.innerHTML = b.html; btn.title = b.title;
+    btn.dataset.cmd = b.cmd;
+    if (b.arg) btn.dataset.arg = b.arg;
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); // keep focus in the body
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      handleFormat(b.cmd, b.arg);
+    });
+    tb.appendChild(btn);
+  });
+  return tb;
+}
+
+/* ---- formatting commands ---- */
+let fontSizeLevel = 3; // HTML fontSize 1-7, default 3
+function handleFormat(cmd, arg) {
+  const body = document.activeElement;
+  if (!body || !body.classList || !body.classList.contains('node-body')) return;
+  if (cmd === 'fontSizeUp') {
+    fontSizeLevel = Math.min(7, fontSizeLevel + 1);
+    document.execCommand('fontSize', false, String(fontSizeLevel));
+  } else if (cmd === 'fontSizeDown') {
+    fontSizeLevel = Math.max(1, fontSizeLevel - 1);
+    document.execCommand('fontSize', false, String(fontSizeLevel));
+  } else if (cmd === 'insertImageInline') {
+    // trigger the hidden image input
+    const input = document.getElementById('imageInput');
+    input.value = ''; input._inlineTarget = body; input.click();
+  } else if (cmd === 'formatBlock') {
+    document.execCommand('formatBlock', false, arg);
+  } else {
+    document.execCommand(cmd, false, null);
+  }
+  body.dispatchEvent(new Event('input'));
 }
 
 function mkTool(cls, svg, title) {
@@ -603,10 +706,73 @@ function mkAnchor(side) {
   return a;
 }
 function nodeTitle(n) {
-  // Use first non-empty line of text as title, or "Image"/"Note".
+  // If the user set a custom title via rename, use it.
+  if (n.customTitle) return n.customTitle;
+  // Derive the title from the body's first heading or text line.
+  // Handles both HTML (rich text) and plain text (old data).
   if (n.kind === 'image') return 'image';
-  const first = (n.text || '').split('\n').map((s) => s.trim()).find(Boolean);
-  return first || 'note';
+  const raw = n.text || '';
+  // strip HTML tags to get visible text
+  const plain = raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
+  const first = plain.split('\n').map((s) => s.trim()).find(Boolean);
+  if (first) return first.slice(0, 50);
+  // try first HTML heading
+  const hm = raw.match(/<h[1-3][^>]*>(.*?)<\/h[1-3]>/i);
+  if (hm) return hm[1].replace(/<[^>]+>/g, '').trim().slice(0, 50) || 'note';
+  return 'note';
+}
+
+/* ---- inline image resize handles ---- */
+function attachImgResizeHandles(img, body) {
+  // remove old handles
+  body.querySelectorAll('.img-resize-handle').forEach((h) => h.remove());
+  const handle = document.createElement('div');
+  handle.className = 'img-resize-handle';
+  body.appendChild(handle);
+  function positionHandle() {
+    const ir = img.getBoundingClientRect();
+    const br = body.getBoundingClientRect();
+    handle.style.display = 'block';
+    handle.style.left = (ir.right - br.left - 6) + 'px';
+    handle.style.top = (ir.bottom - br.top - 6) + 'px';
+  }
+  positionHandle();
+  // reposition on scroll/resize
+  body.addEventListener('scroll', positionHandle, { passive: true });
+
+  handle.addEventListener('pointerdown', (e) => {
+    e.stopPropagation(); e.preventDefault();
+    const startX = e.clientX;
+    const startW = img.offsetWidth;
+    const bodyW = body.clientWidth - 24; // minus padding
+    let dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      if (!dragging) return;
+      const dx = (ev.clientX - startX) / view.zoom;
+      const newW = Math.max(30, Math.min(bodyW, startW + dx));
+      const pct = Math.round((newW / bodyW) * 100);
+      img.style.width = pct + '%';
+      img.style.height = 'auto';
+      positionHandle();
+    };
+    const up = () => {
+      dragging = false;
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      body.dispatchEvent(new Event('input')); // persist the new width
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  });
+  // click outside the image deselects + removes handles
+  setTimeout(() => {
+    document.addEventListener('pointerdown', function rm() {
+      handle.remove();
+      img.classList.remove('img-selected');
+      document.removeEventListener('pointerdown', rm);
+    }, { once: true });
+  }, 100);
 }
 
 /* ---------- node interactions ---------- */
@@ -682,15 +848,32 @@ function bindNode(el, n, refs) {
     document.addEventListener('pointerup', up);
   });
 
-  // body edit (text)
+  // body edit (rich text — reads/writes innerHTML)
   if (refs.body.contentEditable === 'true' || refs.body.isContentEditable) {
     refs.body.addEventListener('input', () => {
-      n.text = refs.body.innerText;
+      n.text = refs.body.innerHTML;
       refs.title.textContent = nodeTitle(n);
       schedulePersist();
     });
-    refs.body.addEventListener('blur', () => { n.text = refs.body.innerText; persist(); });
+    refs.body.addEventListener('blur', () => { n.text = refs.body.innerHTML; persist(); });
     refs.body.addEventListener('pointerdown', (e) => e.stopPropagation());
+    // sanitize paste: insert as plain text (strip external formatting)
+    refs.body.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+    // inline image resize: click an img to select it, drag handle to resize
+    refs.body.addEventListener('click', (e) => {
+      if (e.target.tagName === 'IMG') {
+        // deselect any previously selected image
+        refs.body.querySelectorAll('img.img-selected').forEach((im) => im.classList.remove('img-selected'));
+        e.target.classList.add('img-selected');
+        attachImgResizeHandles(e.target, refs.body);
+      } else {
+        refs.body.querySelectorAll('img.img-selected').forEach((im) => im.classList.remove('img-selected'));
+      }
+    });
   }
 
   // title rename — triggered by double-clicking the head (single click grabs).
@@ -706,13 +889,12 @@ function bindNode(el, n, refs) {
   });
   refs.title.addEventListener('blur', () => {
     refs.title.contentEditable = 'false';
+    // Title is now a display-only label derived from body content.
+    // Renaming just sets a custom display name; it doesn't modify the body HTML.
     const newTitle = refs.title.textContent.trim();
-    if (n.kind !== 'image') {
-      const lines = (n.text || '').split('\n');
-      lines[0] = newTitle;
-      n.text = lines.join('\n');
-      refs.body.innerText = n.text;
-    }
+    if (newTitle) n.customTitle = newTitle;
+    else delete n.customTitle;
+    refs.title.textContent = n.customTitle || nodeTitle(n);
     persist();
   });
   refs.title.addEventListener('keydown', (e) => {
@@ -733,13 +915,19 @@ function bindNode(el, n, refs) {
     deleteNode(n.id);
   });
 
-  // anchors (connect tool)
-  refs.anchors.forEach((a) => {
-    a.addEventListener('pointerdown', (e) => {
-      e.stopPropagation(); e.preventDefault();
-      startEdgeFrom(n.id, a, e);
-    });
+  // connect zone — drag from anywhere on the node to start an edge
+  refs.connectZone.addEventListener('pointerdown', (e) => {
+    if (tool !== 'connect') return;
+    e.stopPropagation(); e.preventDefault();
+    startEdgeFromNode(n.id, e);
   });
+  // also allow connect-drag from the head in connect mode
+  refs.head.addEventListener('pointerdown', (e) => {
+    if (tool !== 'connect') return;
+    if (e.target.closest('.node-tool')) return;
+    e.stopPropagation(); e.preventDefault();
+    startEdgeFromNode(n.id, e);
+  }, true);
 }
 
 let persistTimer = null;
@@ -923,7 +1111,7 @@ function renderEdges() {
     const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     hit.setAttribute('d', d); hit.setAttribute('class', 'edge-hit');
     hit.dataset.edgeId = e.id;
-    hit.addEventListener('click', (ev) => { ev.stopPropagation(); deleteEdge(e.id); });
+    hit.addEventListener('click', (ev) => { ev.stopPropagation(); edgeMenu(e.id, ev.clientX, ev.clientY); });
     // visible path
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d); p.setAttribute('class', 'edge-path');
@@ -967,13 +1155,25 @@ function deleteEdge(id) {
   window.nt && window.nt.toast('Connector removed.');
 }
 
+function edgeMenu(id, x, y) {
+  const e = edges.find((x) => x.id === id);
+  if (!e) return;
+  showCtxMenu(x, y, [
+    { label: e.label ? 'Edit label' : 'Add label', action: () => {
+      const label = prompt('Connector label:', e.label || '');
+      if (label !== null) { e.label = label.trim(); renderEdges(); persist(); }
+    }},
+    { label: 'Delete', danger: true, action: () => deleteEdge(id) },
+  ]);
+}
+
 /* ---------- connect gesture ---------- */
 let provisional = null;  // {from:{x,y}, to:{x,y}, fromId}
-function startEdgeFrom(nodeId, anchorEl, e) {
+function startEdgeFromNode(nodeId, e) {
   const n = nodes.find((x) => x.id === nodeId);
   if (!n) return;
-  const start = anchorPoint(n, anchorEl.dataset.side);
-  provisional = { fromId: nodeId, from: start, to: screenToWorld(e.clientX, e.clientY) };
+  const c = nodeCenter(n);
+  provisional = { fromId: nodeId, from: c, to: screenToWorld(e.clientX, e.clientY) };
   renderEdges();
   const move = (ev) => {
     provisional.to = screenToWorld(ev.clientX, ev.clientY);
@@ -982,7 +1182,6 @@ function startEdgeFrom(nodeId, anchorEl, e) {
   const up = (ev) => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
-    // find the node under the cursor
     const wpt = screenToWorld(ev.clientX, ev.clientY);
     const target = nodes.find((x) => x.id !== nodeId && wpt.x >= x.x && wpt.x <= x.x + x.w && wpt.y >= x.y && wpt.y <= x.y + x.h);
     provisional = null;
@@ -991,6 +1190,14 @@ function startEdgeFrom(nodeId, anchorEl, e) {
       const eid = 'e' + Date.now().toString(36);
       edges.push({ id: eid, from: nodeId, to: target.id, color: 0, label: '' });
       renderEdges(); persist();
+      // prompt for a label (optional)
+      setTimeout(() => {
+        const label = prompt('Label for this connector? (leave empty for none)', '');
+        if (label && label.trim()) {
+          const edge = edges.find((x) => x.id === eid);
+          if (edge) { edge.label = label.trim(); renderEdges(); persist(); }
+        }
+      }, 50);
       window.nt && window.nt.toast('Connected.');
     }
   };
@@ -1066,9 +1273,28 @@ viewport.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // image input (file picker)
-imageInput.addEventListener('change', () => {
+imageInput.addEventListener('change', async () => {
   const f = imageInput.files[0];
   if (!f) return;
+  // If an inline target was set (from the formatting toolbar), insert into the note body.
+  if (imageInput._inlineTarget) {
+    const body = imageInput._inlineTarget;
+    imageInput._inlineTarget = null;
+    window.nt && window.nt.toast('Uploading image…');
+    try {
+      const form = new FormData(); form.append('file', f);
+      const res = await fetch('/api/board/image', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+      // insert at cursor position (or append)
+      body.focus();
+      const imgHtml = '<img src="' + data.url + '" style="width:80%">';
+      document.execCommand('insertHTML', false, imgHtml);
+      body.dispatchEvent(new Event('input'));
+    } catch (err) { window.nt && window.nt.toast(err.message); }
+    return;
+  }
+  // Otherwise create a standalone image node
   const pt = imageInput._dropPt || { x: 0, y: 0 };
   addImageNode(pt.x, pt.y, f);
 });
@@ -1127,9 +1353,32 @@ document.addEventListener('keydown', (e) => {
 /* ---------- zoom buttons ---------- */
 document.getElementById('zoomIn').addEventListener('click', () => zoomAt(1.2));
 document.getElementById('zoomOut').addEventListener('click', () => zoomAt(1 / 1.2));
-document.getElementById('zoomFit').addEventListener('click', () => {
+document.getElementById('zoomFit').addEventListener('click', () => fitToView());
+document.getElementById('zoomHome').addEventListener('click', () => {
   view = { x: 40, y: 40, zoom: 1 }; applyView(); persist();
 });
+
+function fitToView() {
+  if (!nodes.length) { view = { x: 40, y: 40, zoom: 1 }; applyView(); persist(); return; }
+  // compute bounding box of all nodes
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach((n) => {
+    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
+  });
+  const padding = 60;
+  const contentW = maxX - minX + padding * 2;
+  const contentH = maxY - minY + padding * 2;
+  const vpW = viewport.clientWidth;
+  const vpH = viewport.clientHeight;
+  const scale = Math.min(vpW / contentW, vpH / contentH, 1.5);
+  view.zoom = Math.max(0.3, scale);
+  // center the content
+  view.x = (vpW - (maxX - minX) * view.zoom) / 2 - minX * view.zoom;
+  view.y = (vpH - (maxY - minY) * view.zoom) / 2 - minY * view.zoom;
+  applyView();
+  persist();
+}
 
 /* ---------- AI rail (unchanged logic, adapted to nodes) ---------- */
 const aiRail = document.getElementById('aiRail');

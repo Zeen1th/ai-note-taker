@@ -374,19 +374,23 @@ input, textarea, select { font-family: inherit; color: inherit; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-label {
   font-family: var(--font-mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--faint);
-  padding: 12px 10px 6px;
+  color: var(--accent);
+  padding: 16px 10px 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
 }
+.nav-label:first-child { border-top: none; margin-top: 0; }
 .nav-item {
   display: flex; align-items: center; gap: 11px;
-  padding: 9px 12px;
+  padding: 10px 12px;
+  margin-bottom: 2px;
   border-radius: var(--r-sm);
   border: 1px solid transparent;
   color: var(--text);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 500;
   position: relative;
   transition: background var(--ease), color var(--ease), box-shadow var(--ease);
@@ -396,8 +400,10 @@ input, textarea, select { font-family: inherit; color: inherit; }
 .nav-item:hover { background: var(--surface); color: var(--fg); }
 .nav-item:hover svg { color: var(--accent-pale); }
 .nav-item.active {
-  background: var(--surface-2);
+  background: var(--accent-soft);
   color: var(--accent-text);
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .nav-item.active::before {
   content: '';
