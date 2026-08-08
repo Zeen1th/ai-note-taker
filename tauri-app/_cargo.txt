@@ -1,2 +1,0 @@
-    Checking tauri-app v0.1.0 (S:\!Dev\AI note taker\New AI note taker\tauri-app\src-tauri)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.00s
