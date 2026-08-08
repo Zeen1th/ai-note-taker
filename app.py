@@ -1083,6 +1083,32 @@ async def delete_board(bid: str):
     return {"deleted": bid}
 
 
+@app.get("/api/all-notes")
+async def all_notes():
+    """Flatten all board nodes across all boards into a single searchable list.
+    Used by the Library page — board nodes ARE the notes now."""
+    result = []
+    for board in _list_boards():
+        for node in _list_board_nodes(board["id"]):
+            if node.get("kind") == "image" and not node.get("text"):
+                continue  # skip pure image nodes with no text
+            # strip HTML for a plain-text preview
+            raw = node.get("text") or ""
+            preview = re.sub(r"<[^>]+>", " ", raw).replace("&nbsp;", " ").strip()[:120]
+            result.append({
+                "id": node["id"],
+                "title": node.get("text", "").split("\n")[0][:60]
+                          if not node.get("text", "").strip().startswith("<")
+                          else preview[:60],
+                "preview": preview,
+                "board_id": board["id"],
+                "board_name": board["name"],
+                "kind": node.get("kind", "note"),
+                "color": node.get("c", 0),
+            })
+    return {"notes": result}
+
+
 @app.get("/api/boards/{bid}")
 async def get_board_scoped(bid: str):
     bid = _resolve_board(bid)
