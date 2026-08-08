@@ -111,7 +111,7 @@
   .node-body {
     flex: 1; font-size: 0.95rem; line-height: 1.65; color: var(--text);
     padding: 10px 14px; outline: none; overflow-y: auto; user-select: text;
-    overflow-wrap: anywhere; min-height: 30px; dir: auto;
+    overflow-wrap: anywhere; min-height: 30px;
   }
   .node-body:empty::before { content: attr(data-placeholder); color: var(--faint); }
   .node.kind-image .node-body { padding: 0; display: flex; align-items: center; justify-content: center; }
@@ -254,32 +254,34 @@
   .nav-item.board-item .board-del:hover { color: var(--warn); }
   .nav-item.board-item.active { font-weight: 600; }
 
-  /* modal note editor */
+  /* modal note editor — matches the old editor.html / ed-wrap feel */
   .note-modal-backdrop {
     position: fixed; inset: 0; z-index: 300;
-    background: rgba(0,0,0,0.35);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     display: flex; align-items: center; justify-content: center;
   }
   .note-modal {
-    position: relative; width: 90%; max-width: 720px; height: 80%; max-height: 680px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
-    display: flex; flex-direction: column; overflow: hidden;
+    position: relative; width: 100%; max-width: 780px; height: 100%; max-height: 100%;
+    background: var(--bg); overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column;
   }
   .note-modal-toolbar {
-    display: flex; flex-wrap: wrap; gap: 1px; padding: 6px 12px;
-    border-bottom: 1px solid var(--border); background: var(--surface-2);
+    display: flex; flex-wrap: wrap; gap: 1px; padding: 8px 26px;
+    border-bottom: 1px solid var(--border); background: var(--bg-deep);
+    position: sticky; top: 0; z-index: 2;
   }
+  .note-modal-inner { max-width: 780px; margin: 0 auto; padding: 0 26px; width: 100%; flex: 1; }
   .note-modal-title {
     width: 100%; border: none; outline: none; background: transparent;
-    font-family: var(--font-body); font-size: 1.6rem; font-weight: 700;
-    color: var(--fg); padding: 18px 24px 8px;
+    font-family: var(--font-display); font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 600;
+    color: var(--fg); padding: 30px 0 6px; margin-top: 12px;
   }
+  .note-modal-title::placeholder { color: var(--faint); }
   .note-modal-body {
-    flex: 1; overflow-y: auto; padding: 8px 24px 24px;
-    font-size: 1rem; line-height: 1.7; color: var(--text); outline: none;
-    overflow-wrap: anywhere; min-height: 100px;
+    width: 100%; min-height: 50vh; padding: 8px 0 70px;
+    font-family: var(--font-body); font-size: 0.95rem; line-height: 1.75; color: var(--text); outline: none;
+    overflow-wrap: anywhere;
   }
   .note-modal-body:empty::before { content: attr(data-placeholder); color: var(--faint); }
   .note-modal-body h1 { font-size: 1.4rem; font-weight: 700; margin: 10px 0 4px; }
@@ -293,10 +295,10 @@
   .note-modal-body blockquote { border-left: 3px solid var(--accent); margin: 6px 0; padding-left: 12px; color: var(--muted); }
   .note-modal-body img { max-width: 100%; border-radius: var(--r-sm); margin: 6px 0; }
   .note-modal-close {
-    position: absolute; top: 10px; right: 10px;
-    width: 32px; height: 32px; display: grid; place-items: center;
-    border: none; background: transparent; color: var(--muted);
-    border-radius: var(--r-sm); cursor: pointer;
+    position: fixed; top: 14px; right: 14px;
+    width: 36px; height: 36px; display: grid; place-items: center;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+    border-radius: var(--r-sm); cursor: pointer; z-index: 5;
     transition: background var(--ease), color var(--ease);
   }
   .note-modal-close:hover { background: var(--surface-3); color: var(--fg); }
@@ -406,8 +408,10 @@
           <div class="note-modal-backdrop" id="noteModal" style="display:none;">
             <div class="note-modal">
               <div class="note-modal-toolbar" id="modalToolbar"></div>
-              <input class="note-modal-title" id="modalTitle" placeholder="Untitled note" autocomplete="off" dir="auto" />
-              <div class="note-modal-body" id="modalBody" contenteditable="true" spellcheck="false" data-placeholder="Start writing…" dir="auto"></div>
+              <div class="note-modal-inner">
+                <input class="note-modal-title" id="modalTitle" placeholder="Untitled note" autocomplete="off" dir="auto" />
+                <div class="note-modal-body" id="modalBody" contenteditable="true" spellcheck="false" data-placeholder="Start writing…" dir="auto"></div>
+              </div>
               <button class="note-modal-close" id="modalClose" title="Close (Esc)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
           </div>
@@ -668,6 +672,7 @@ function createNodeEl(n) {
     toolbar = mkToolbar();
     body = document.createElement('div'); body.className = 'node-body';
     body.contentEditable = 'true'; body.spellcheck = false;
+    body.dir = 'auto';
     body.dataset.placeholder = 'Type…';
     // Render HTML if the text looks like HTML; otherwise treat as plain text (old data).
     const t = n.text || '';
@@ -766,20 +771,10 @@ function mkAnchor(side) {
   return a;
 }
 function nodeTitle(n) {
-  // If the user set a custom title via rename, use it.
-  if (n.customTitle) return n.customTitle;
-  // Derive the title from the body's first heading or text line.
-  // Handles both HTML (rich text) and plain text (old data).
-  if (n.kind === 'image') return 'image';
-  const raw = n.text || '';
-  // strip HTML tags to get visible text
-  const plain = raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
-  const first = plain.split('\n').map((s) => s.trim()).find(Boolean);
-  if (first) return first.slice(0, 50);
-  // try first HTML heading
-  const hm = raw.match(/<h[1-3][^>]*>(.*?)<\/h[1-3]>/i);
-  if (hm) return hm[1].replace(/<[^>]+>/g, '').trim().slice(0, 50) || 'note';
-  return 'note';
+  // Title is fully separate from content — the user names it.
+  // Falls back to 'Untitled note' if never set (not derived from body).
+  if (n.kind === 'image') return n.customTitle || 'Image';
+  return n.customTitle || 'Untitled note';
 }
 
 /* ---- inline image resize handles ---- */
@@ -1683,7 +1678,7 @@ function openNoteModal(nodeId) {
   const n = nodes.find((x) => x.id === nodeId);
   if (!n) return;
   modalNode = n;
-  modalTitle.value = n.customTitle || nodeTitle(n);
+  modalTitle.value = n.customTitle || '';
   const t = n.text || '';
   if (t.trim().startsWith('<')) modalBody.innerHTML = t; else modalBody.innerText = t;
   noteModal.style.display = 'flex';
