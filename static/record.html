@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="notebook" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Capture — note·taker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/kinpaku.css">
+<style>
+  .rec-layout { display: grid; grid-template-columns: 1.55fr 1fr; gap: 20px; padding: 24px 26px 44px; min-height: 0; flex: 1; }
+  .rec-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; }
+  .rec-stage-card { padding: 24px; }
+  .rec-stage-card .eyebrow { color: var(--accent-text); }
+  .rec-btns { display: flex; align-items: center; gap: 18px; margin-top: 18px; flex-wrap: wrap; }
+  .rec-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; }
+  .file-pick { margin-top: 16px; }
+  .file-pick .input { cursor: pointer; }
+  .pipe-wrap { margin-top: 8px; }
+  .pipe-note { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-top: 12px; }
+  .transcript-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .transcript-card .transcript-scroll { flex: 1; overflow-y: auto; padding-right: 6px; min-height: 0; }
+  .ai-card { border-top: 1px solid var(--border-strong); }
+  .ai-card .ai-head { display: flex; align-items: center; gap: 9px; }
+  .ai-card .ai-head .eyebrow { color: var(--patina); }
+  .ai-card .chat-wrap { height: 220px; display: flex; flex-direction: column; }
+  .ai-card .chat-wrap .chat-scroll { flex: 1; min-height: 0; }
+  /* .hint / .ai-empty / .ai-summary now live in kinpaku.css (deduped) */
+</style>
+</head>
+<body>
+<div class="win">
+
+  <header class="titlebar pywebview-drag-region">
+    <div class="tb-left">
+      <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
+      <span class="brand-name">note·taker</span>
+    </div>
+    <span class="tb-crumb">Library / <b>Capture</b></span>
+    <span class="tb-spacer"></span>
+    <button class="icon-btn" data-palette-toggle title="Cycle palette — notebook / blueprint / aurora" aria-label="Switch palette">
+      <span class="pal-swatch"></span>
+    </button>
+    <button class="icon-btn" data-theme-toggle title="Toggle light / dark" aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <div class="winctl">
+      <button data-win="min" aria-label="Minimise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg></button>
+      <button data-win="max" aria-label="Maximise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+      <button class="close" data-win="close" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidebar" aria-label="Primary">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
+        <span>
+          <span class="brand-name">note·taker</span>
+          <span class="brand-sub">local · private</span>
+        </span>
+      </a>
+
+      <div class="nav">
+        <span class="nav-label">Workspace</span>
+        <a class="nav-item" href="board.html" data-od-id="nav-board">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Board <span class="nav-count">1</span>
+        </a>
+        <a class="nav-item" href="library.html" data-od-id="nav-library">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></svg>
+          Library <span class="nav-count">12</span>
+        </a>
+        <a class="nav-item active" href="record.html" data-od-id="nav-record">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg>
+          Capture <span class="nav-count">3</span>
+        </a>
+        <a class="nav-item" href="editor.html" data-od-id="nav-editor">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          New note
+        </a>
+        <span class="nav-label">Collections</span>
+        <a class="nav-item" href="library.html#work">Work</a>
+        <a class="nav-item" href="library.html#personal">Personal</a>
+        <a class="nav-item" href="library.html#readwise">Reading</a>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="foot-meta">whisper · ollama · on demand<br>v2.0 · kinpaku build</div>
+      </div>
+    </nav>
+
+    <main class="main" data-od-id="record-main">
+      <div class="rec-layout">
+        <section class="rec-col">
+
+          <div class="card rec-stage-card" data-od-id="card-recorder">
+            <div class="card-head"><span class="eyebrow">Capture</span><span class="grow"></span><span class="status-pill"><span class="dot"></span> local · private</span></div>
+            <p style="font-size:.86rem;color:var(--muted);max-width:56ch;">Record a meeting or a voice memo. Nothing leaves this machine — transcription runs locally, only when you ask.</p>
+
+            <div class="rec-btns">
+              <button class="rec-btn" id="recBtn" aria-label="Record" data-od-id="btn-record">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+              </button>
+              <div>
+                <div class="rec-timer" id="recTimer">00:00</div>
+                <div class="hint" id="recStatus">Idle — press to start</div>
+              </div>
+            </div>
+
+            <div class="pipe-wrap">
+              <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+              <div class="pipeline" id="pipeList" style="margin-top:14px;"></div>
+              <div class="pipe-note">whisper model loads on first transcription, then stays warm</div>
+            </div>
+
+            <div class="file-pick">
+              <div class="hint" style="margin-bottom:8px;">Or import audio</div>
+              <label class="select" style="display:flex;align-items:center;gap:10px;padding:0 13px;height:38px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-deep);color:var(--muted);font-size:.84rem;cursor:pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <input type="file" id="fileInput" accept=".mp3,.mp4,.m4a,.wav,.mov,.webm" hidden />
+                <span id="fileLabel">Choose file — mp3, wav, m4a, webm, mp4, mov</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="card transcript-card" data-od-id="card-transcript">
+            <div class="card-head">
+              <span class="eyebrow">Transcript</span>
+              <span class="grow"></span>
+              <span class="hint" id="transcriptMeta">—</span>
+            </div>
+            <div class="transcript-scroll" id="transcriptBody">
+              <div class="ai-empty">Record or import audio — the transcript appears here once you run it through transcription.</div>
+            </div>
+          </div>
+
+        </section>
+
+        <section class="rec-side" data-od-id="ai-rail">
+          <div class="card ai-card">
+            <div class="ai-head">
+              <span class="tag is-patina"><span class="dot"></span> AI · optional</span>
+              <span class="grow"></span>
+              <span class="hint">on demand</span>
+            </div>
+            <div class="ai-summary" id="aiSummary">
+              <p style="margin-top:12px;color:var(--muted);font-size:.86rem;font-family:var(--font-mono);">Summary, action items, and a chat over the transcript will appear here after transcription.</p>
+            </div>
+            <hr class="seam">
+            <div class="chat-wrap">
+              <div class="chip-row">
+                <button class="chip" data-prompt="Give me a concise summary of this recording.">Summary</button>
+                <button class="chip" data-prompt="List the action items.">Action items</button>
+                <button class="chip" data-prompt="What decisions were made?">Decisions</button>
+                <button class="chip" data-prompt="Key points by speaker.">Key points</button>
+              </div>
+              <div class="chat-scroll" id="chatLog" style="margin-top:12px;">
+                <div class="ai-empty">Chat over the transcript — transcribe first.</div>
+              </div>
+              <div class="chat-input-row">
+                <input class="input" id="chatInput" placeholder="Ask about the recording…" />
+                <button class="btn btn-primary" id="chatSend" aria-label="Send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  // ---- Capture + transcribe + AI rail, wired to the real backend ----
+  const recBtn = document.getElementById('recBtn');
+  const recTimer = document.getElementById('recTimer');
+  const recStatus = document.getElementById('recStatus');
+  const pipeList = document.getElementById('pipeList');
+  const progFill = document.getElementById('progFill');
+  const fileInput = document.getElementById('fileInput');
+  const fileLabel = document.getElementById('fileLabel');
+  const transcriptBody = document.getElementById('transcriptBody');
+  const transcriptMeta = document.getElementById('transcriptMeta');
+  const aiSummary = document.getElementById('aiSummary');
+  const chatLog = document.getElementById('chatLog');
+  const chatInput = document.getElementById('chatInput');
+  const chatSend = document.getElementById('chatSend');
+
+  const PIPELINE = ['Loading model', 'Preparing audio', 'Transcribing', 'Aligning words', 'Identifying speakers', 'Writing notes'];
+  const EMPTY_TRANSCRIPT = '<div class="ai-empty">Record or import audio — the transcript appears here once you run it through transcription.</div>';
+
+  let transcript = '';           // speaker-labeled transcript, kept for chat
+  let chatMessages = [];         // [{role, content}]
+  let lastResult = null;         // the last transcribe result
+  let busy = false;              // transcribe in progress
+
+  // ---- pipeline view, driven by streamed progress events ----
+  function speakerClass(label) {
+    const m = /Speaker (\d+)/.exec(label || '');
+    const n = m ? parseInt(m[1], 10) : 1;
+    return 'sp-' + (((n - 1) % 5) + 1);
+  }
+  function renderTranscript(segments) {
+    transcriptBody.innerHTML = '';
+    if (!segments || !segments.length) { transcriptBody.innerHTML = EMPTY_TRANSCRIPT; return; }
+    let lastSpeaker = null, turnEl = null, whatEl = null;
+    for (const seg of segments) {
+      if (seg.speaker !== lastSpeaker) {
+        turnEl = document.createElement('div');
+        turnEl.className = 'turn ' + speakerClass(seg.speaker);
+        const who = document.createElement('div');
+        who.className = 'who';
+        who.textContent = seg.speaker;
+        whatEl = document.createElement('div');
+        whatEl.className = 'what';
+        whatEl.textContent = seg.text;
+        turnEl.appendChild(who); turnEl.appendChild(whatEl);
+        transcriptBody.appendChild(turnEl);
+        lastSpeaker = seg.speaker;
+      } else {
+        whatEl.textContent += ' ' + seg.text;
+      }
+    }
+  }
+
+  function showPipeline(stage) {
+    // (Re)build the step list the first time a real stage arrives.
+    if (!pipeList.dataset.built) {
+      pipeList.innerHTML = PIPELINE.map((s) =>
+        '<div class="pipe-step" data-step="' + s.replace(/[^a-z]/gi, '') + '">' +
+          '<div class="pipe-ico">' + circleSvg() + '</div>' +
+          '<span class="pipe-name">' + s + '</span><span class="pipe-meta"></span>' +
+        '</div>'
+      ).join('');
+      pipeList.dataset.built = '1';
+    }
+    const steps = Array.from(pipeList.querySelectorAll('[data-step]'));
+    const idx = PIPELINE.indexOf(stage);
+    steps.forEach((el, i) => {
+      el.classList.remove('running', 'done');
+      el.querySelector('.pipe-ico').innerHTML = (i < idx) ? checkSvg() : circleSvg();
+      el.querySelector('.pipe-meta').textContent = '';
+      if (i < idx) el.classList.add('done');
+      else if (i === idx) el.classList.add('running');
+    });
+  }
+  function finishPipeline() {
+    Array.from(pipeList.querySelectorAll('[data-step]')).forEach((el) => {
+      el.classList.remove('running'); el.classList.add('done');
+      el.querySelector('.pipe-ico').innerHTML = checkSvg();
+    });
+    progFill.style.width = '100%';
+  }
+  function resetPipeline() { pipeList.innerHTML = ''; pipeList.removeAttribute('data-built'); progFill.style.width = '0%'; }
+  function checkSvg() { return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'; }
+  function circleSvg() { return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="8"/></svg>'; }
+
+  // ---- run transcription (mic blob or imported file) against /api/transcribe ----
+  async function processAudio(blob, filename) {
+    if (busy || !blob) return;
+    busy = true;
+    recStatus.textContent = 'Transcribing locally… models load on first use.';
+    transcriptBody.innerHTML = '<div class="ai-empty">Working…</div>';
+    aiSummary.innerHTML = '<p style="margin-top:12px;color:var(--muted);font-size:.86rem;font-family:var(--font-mono);">Generating notes…</p>';
+    resetPipeline();
+    progFill.style.width = '4%';
+
+    try {
+      const form = new FormData();
+      form.append('file', blob, filename);
+      const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || ('Request failed (' + res.status + ')'));
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '', result = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const evt = JSON.parse(line);
+          if (evt.type === 'progress') {
+            showPipeline(evt.stage); progFill.style.width = evt.pct + '%';
+          } else if (evt.type === 'result') {
+            result = evt; progFill.style.width = '100%';
+          } else if (evt.type === 'error') {
+            throw new Error(evt.detail);
+          }
+        }
+      }
+      if (!result) throw new Error('Transcription ended without a result.');
+
+      lastResult = result;
+      transcript = result.transcript || '';
+      renderTranscript(result.segments || []);
+      transcriptMeta.textContent = (result.num_speakers || 1) + ' speaker' + (result.num_speakers === 1 ? '' : 's') + (result.session ? ' · saved' : '');
+      aiSummary.innerHTML = window.marked ? marked.parse(result.notes || '') : (result.notes || '');
+      // After notes are generated, offer to send them to a board.
+      showSendToBoardPrompt(result.notes || '', result.session);
+      finishPipeline();
+      chatReady(true);
+      document.dispatchEvent(new CustomEvent('nt-transcribe-done', { detail: { duration: result.elapsed || 0 } }));
+      if (result.warning) {
+        recStatus.textContent = 'Done · ⚠ ' + result.warning;
+        window.nt && window.nt.toast(result.warning);
+      } else {
+        recStatus.textContent = 'Transcription complete.';
+      }
+    } catch (err) {
+      resetPipeline();
+      recStatus.textContent = '';
+      transcriptBody.innerHTML = EMPTY_TRANSCRIPT;
+      aiSummary.innerHTML = '<p style="margin-top:12px;color:var(--warn);font-size:.86rem;font-family:var(--font-mono);">' + escHtml(err.message) + '</p>';
+      window.nt && window.nt.toast(err.message);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function escHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function chatReady(on) {
+    chatInput.disabled = !on;
+    chatSend.disabled = !on;
+    chatInput.placeholder = on ? 'Ask about the recording…' : 'Transcribe first to enable chat.';
+    const empty = chatLog.querySelector('.ai-empty');
+    if (empty) empty.textContent = on ? 'Ready — ask anything about this recording.' : 'Chat over the transcript — transcribe first.';
+  }
+
+  // ---- live recorder: mic + optional desktop audio, mixed into one .webm ----
+  let mediaRecorder = null, recStreams = [], recChunks = [], recAudioCtx = null, recTimerId = null, recStart = 0;
+  function stopRecStreams() {
+    recStreams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+    recStreams = [];
+    if (recAudioCtx) { recAudioCtx.close().catch(() => {}); recAudioCtx = null; }
+    if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+  }
+  function fmtTime(s) { const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); }
+  function tickTimer() { recTimer.textContent = fmtTime(Math.floor((Date.now() - recStart) / 1000)); }
+
+  async function startRecording() {
+    let micStream;
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (err) { recStatus.textContent = 'Microphone access was blocked. Allow it to record.'; window.nt && window.nt.toast('Microphone blocked.'); return; }
+
+    let desktopStream = null;
+    try {
+      desktopStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      if (desktopStream.getAudioTracks().length === 0) {
+        desktopStream.getTracks().forEach((t) => t.stop());
+        desktopStream = null;
+        recStatus.textContent = "No system audio captured — recording mic only.";
+      }
+    } catch (err) { desktopStream = null; }
+
+    recAudioCtx = new AudioContext();
+    const dest = recAudioCtx.createMediaStreamDestination();
+    recStreams = [micStream];
+    recAudioCtx.createMediaStreamSource(micStream).connect(dest);
+    if (desktopStream) { recStreams.push(desktopStream); recAudioCtx.createMediaStreamSource(desktopStream).connect(dest); }
+
+    recChunks = [];
+    mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stopRecStreams();
+      const blob = new Blob(recChunks, { type: 'audio/webm' });
+      recTimer.textContent = '';
+      if (blob.size === 0) { recStatus.textContent = 'Recording was empty.'; return; }
+      processAudio(blob, 'recording.webm');
+    };
+    mediaRecorder.start();
+    if (desktopStream) {
+      desktopStream.getVideoTracks().forEach((t) => { t.onended = () => { if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording(); }; });
+    }
+    recStart = Date.now(); tickTimer(); recTimerId = setInterval(tickTimer, 1000);
+    recBtn.classList.add('recording');
+    recBtn.innerHTML = stopIcon();
+    recStatus.textContent = 'Recording — press stop to transcribe.';
+  }
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recBtn.classList.remove('recording');
+    recBtn.innerHTML = recIcon();
+  }
+  function recIcon() { return '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>'; }
+  function stopIcon() { return '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>'; }
+
+  recBtn.addEventListener('click', () => {
+    if (busy) return;
+    if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+    else startRecording();
+  });
+
+  // ---- file import ----
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (f) { fileLabel.textContent = f.name; processAudio(f, f.name); }
+  });
+
+  // ---- AI rail chat over the transcript ----
+  function pushMsg(role, text) {
+    const empty = chatLog.querySelector('.ai-empty');
+    if (empty) empty.remove();
+    const el = document.createElement('div');
+    el.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    if (role === 'bot') { el.innerHTML = '<span class="msg-role">Note taker</span>' + escHtml(text).replace(/\n/g, '<br>'); }
+    else { el.textContent = text; }
+    chatLog.appendChild(el);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    return el;
+  }
+  async function sendChat(text) {
+    text = (text || '').trim();
+    if (!text || chatInput.disabled || !transcript) return;
+    pushMsg('user', text); chatInput.value = '';
+    chatMessages.push({ role: 'user', content: text });
+    chatInput.disabled = true; chatSend.disabled = true;
+    const pending = pushMsg('bot', '…');
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, messages: chatMessages }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || ('Request failed (' + res.status + ')'));
+      pending.innerHTML = '<span class="msg-role">Note taker</span>' + (window.marked ? marked.parse(data.reply || '') : escHtml(data.reply || '').replace(/\n/g, '<br>'));
+      chatMessages.push({ role: 'assistant', content: data.reply || '' });
+    } catch (err) {
+      pending.textContent = '⚠ ' + err.message;
+      pending.style.color = 'var(--warn)';
+    } finally {
+      chatInput.disabled = false; chatSend.disabled = false; chatInput.focus();
+    }
+  }
+  chatSend.addEventListener('click', () => sendChat(chatInput.value));
+  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(chatInput.value); });
+  document.querySelectorAll('.chip').forEach((chip) => chip.addEventListener('click', () => sendChat(chip.dataset.prompt)));
+
+  // ---- post-transcribe: prompt to send notes to a board ----
+  function showSendToBoardPrompt(notesMarkdown, session) {
+    if (!notesMarkdown || !notesMarkdown.trim()) return;
+    // Avoid duplicates: remove any existing prompt bar.
+    const existing = document.getElementById('boardPromptBar');
+    if (existing) existing.remove();
+    const title = (session && session.title) ? session.title : 'Untitled recording';
+    const bar = document.createElement('div');
+    bar.id = 'boardPromptBar';
+    bar.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-deep);display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    bar.innerHTML =
+      '<span style="font-size:.8rem;color:var(--muted);flex:1;min-width:120px;">Send notes to a board?</span>' +
+      '<button class="btn btn-primary btn-sm" id="bpNew">New board</button>' +
+      '<select class="select" id="bpExisting" style="width:auto;height:30px;font-size:.78rem;"></select>' +
+      '<button class="btn btn-secondary btn-sm" id="bpAdd" style="display:none;">Add</button>';
+    aiSummary.appendChild(bar);
+
+    // Populate the existing-boards dropdown.
+    const sel = bar.querySelector('#bpExisting');
+    fetch('/api/boards').then((r) => r.json()).then((d) => {
+      const boards = d.boards || [];
+      if (boards.length) {
+        sel.innerHTML = '<option value="">Add to board…</option>' +
+          boards.map((b) => '<option value="' + b.id + '">' + b.name + '</option>').join('');
+        bar.querySelector('#bpAdd').style.display = '';
+      } else {
+        sel.style.display = 'none';
+      }
+    }).catch(() => { sel.style.display = 'none'; });
+
+    // New board: create + send notes.
+    bar.querySelector('#bpNew').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/boards', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: title, source_session_id: session ? session.id : '' }),
+        });
+        const board = await res.json();
+        await sendNotesToBoard(board.id, notesMarkdown, title);
+      } catch (err) { window.nt && window.nt.toast('Could not create board.'); }
+    });
+
+    // Existing board: add notes when the user picks one + clicks Add.
+    bar.querySelector('#bpAdd').addEventListener('click', async () => {
+      const bid = sel.value;
+      if (!bid) return;
+      await sendNotesToBoard(bid, notesMarkdown, title);
+    });
+  }
+
+  async function sendNotesToBoard(boardId, notesMarkdown, title) {
+    try {
+      const res = await fetch('/api/boards/' + boardId + '/from-notes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes_markdown: notesMarkdown, title: title }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed');
+      const bar = document.getElementById('boardPromptBar');
+      if (bar) {
+        bar.innerHTML = '<span style="font-size:.8rem;color:var(--accent);">✓ Sent ' + data.count + ' notes to board. <a href="board.html?b=' + boardId + '" style="color:var(--accent);text-decoration:underline;">Open board →</a></span>';
+      }
+      window.nt && window.nt.toast('Notes sent to board.');
+    } catch (err) {
+      window.nt && window.nt.toast(err.message);
+    }
+  }
+
+  // ---- open a saved session from ?session= (read-only transcript + notes) ----
+  async function loadSession() {
+    const params = new URLSearchParams(location.search);
+    const sid = params.get('session');
+    if (!sid) return;
+    recStatus.textContent = 'Loading session…';
+    try {
+      const res = await fetch('/api/sessions/' + encodeURIComponent(sid));
+      if (!res.ok) throw new Error('Session not found.');
+      const s = await res.json();
+      lastResult = { transcript: s.transcript, segments: s.segments || [], notes: s.notes, num_speakers: s.num_speakers, session: { id: s.id, title: s.title } };
+      transcript = s.transcript || '';
+      renderTranscript(s.segments || []);
+      transcriptMeta.textContent = (s.num_speakers || 1) + ' speaker' + (s.num_speakers === 1 ? '' : 's') + ' · saved';
+      aiSummary.innerHTML = window.marked ? marked.parse(s.notes || '') : (s.notes || '');
+      chatReady(true);
+      recStatus.textContent = 'Loaded “' + (s.title || 'Recording') + '”.';
+      // An audio player so the saved recording can be replayed.
+      if (s.audio_url) {
+        const player = document.createElement('audio');
+        player.controls = true;
+        player.src = s.audio_url;
+        player.style.cssText = 'width:100%;margin-top:12px;';
+        transcriptBody.parentElement.querySelector('.card-head').appendChild(player);
+      }
+    } catch (err) {
+      recStatus.textContent = '';
+      window.nt && window.nt.toast(err.message);
+    }
+  }
+
+  loadSession();
+  chatReady(false);
+</script>
+</body>
+</html>

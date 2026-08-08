@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="notebook" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Board — note·taker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/kinpaku.css">
+<style>
+  /* ---------- Miro-style node canvas ---------- */
+  .board-layout { flex: 1; display: flex; min-height: 0; }
+  .board-col { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+
+  .board-toolbar {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg); flex-wrap: wrap; z-index: 5;
+  }
+  .board-count { font-family: var(--font-mono); font-size: 0.66rem; color: var(--faint); white-space: nowrap; }
+  .board-toolbar .grow { flex: 1; }
+
+  /* tool palette — segmented control */
+  .tool-bar { display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+    border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-deep); }
+  .tool { width: 32px; height: 30px; display: grid; place-items: center;
+    border: none; background: transparent; color: var(--muted); border-radius: var(--r-xs);
+    cursor: pointer; transition: background var(--ease), color var(--ease); }
+  .tool:hover { color: var(--fg); background: var(--surface-2); }
+  .tool.active { background: var(--accent); color: var(--on-accent); }
+  .tool-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+
+  /* viewport + world (pan/zoom) */
+  .board-viewport {
+    flex: 1; overflow: hidden; position: relative;
+    background: var(--bg);
+    background-image:
+      radial-gradient(var(--grid, transparent) 1px, transparent 1px),
+      radial-gradient(560px 320px at 84% -12%, var(--glow, transparent), transparent 72%);
+    background-size: 24px 24px, auto;
+    cursor: grab;
+  }
+  html[data-palette="blueprint"] .board-viewport {
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+      radial-gradient(560px 320px at 84% -12%, var(--glow), transparent 72%);
+    background-size: 28px 28px, 28px 28px, auto;
+  }
+  html[data-palette="aurora"] .board-viewport { background-image: radial-gradient(560px 320px at 84% -12%, var(--glow), transparent 72%); }
+  .board-viewport.panning { cursor: grabbing; }
+  .board-viewport.tool-add, .board-viewport.tool-image { cursor: copy; }
+  .board-viewport.tool-connect { cursor: crosshair; }
+
+  .board-world {
+    position: absolute; top: 0; left: 0; width: 1px; height: 1px;
+    transform-origin: 0 0;
+  }
+
+  /* edge layer — SVG sitting in world space */
+  .edge-layer { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+  .edge-path { fill: none; stroke: var(--muted); stroke-width: 1.6; pointer-events: stroke; cursor: pointer; transition: stroke var(--ease), stroke-width var(--ease); }
+  .edge-path:hover { stroke: var(--accent); stroke-width: 2.4; }
+  .edge-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+  .edge-provisional { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 5 4; pointer-events: none; }
+
+  /* nodes */
+  .node {
+    position: absolute; display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); box-shadow: var(--shadow-sm);
+    overflow: hidden; user-select: none;
+    transition: box-shadow var(--ease), border-color var(--ease);
+    touch-action: none;  /* prevent the viewport pan from stealing node gestures */
+  }
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); box-shadow: var(--shadow-sm);
+    overflow: hidden; user-select: none;
+    transition: box-shadow var(--ease), border-color var(--ease);
+  }
+  .node:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+  .node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-md); }
+  .node.is-dragging { box-shadow: var(--shadow-lg); opacity: 0.97; z-index: 50; }
+  .node-color-bar { height: 3px; flex-shrink: 0; background: var(--accent); }
+
+  .node-head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; cursor: grab; border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .node-head:active { cursor: grabbing; }
+  .node-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0;
+    pointer-events: none; /* decorative — never the grab target */ }
+  .node-title { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 0.62rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    outline: none;
+    pointer-events: none; /* transparent to the mouse so the bar grabs, not the text;
+                              re-enabled below when actively editing */ }
+  .node-title[contenteditable="true"] { pointer-events: auto; }
+  .node-title[contenteditable="true"]:focus { color: var(--fg); }
+  .node-tools { display: flex; gap: 1px; opacity: 0; transition: opacity var(--ease); }
+  .node:hover .node-tools, .node.selected .node-tools { opacity: 1; }
+  .node-tool { width: 22px; height: 22px; display: grid; place-items: center;
+    border: none; background: transparent; color: var(--muted); border-radius: var(--r-xs);
+    cursor: pointer; }
+  .node-tool:hover { color: var(--accent); background: var(--surface-3); }
+  .node-tool.del:hover { color: var(--warn); }
+
+  .node-body {
+    flex: 1; font-size: 0.86rem; line-height: 1.6; color: var(--text);
+    padding: 9px 12px; outline: none; overflow-y: auto; user-select: text;
+    overflow-wrap: anywhere; min-height: 30px;
+  }
+  .node-body:empty::before { content: attr(data-placeholder); color: var(--faint); }
+  .node.kind-image .node-body { padding: 0; display: flex; align-items: center; justify-content: center; }
+  .node.kind-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* resize handle */
+  .node-resize {
+    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+    cursor: nwse-resize; opacity: 0; transition: opacity var(--ease);
+    background: linear-gradient(135deg, transparent 50%, var(--muted) 50% 60%, transparent 60% 70%, var(--muted) 70% 80%, transparent 80%);
+  }
+  .node:hover .node-resize, .node.selected .node-resize { opacity: 0.6; }
+
+  /* anchor dots — shown on hover when connect tool active */
+  .node-anchor {
+    position: absolute; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--accent);
+    opacity: 0; transition: opacity var(--ease); transform: translate(-50%, -50%);
+    cursor: crosshair; z-index: 2;
+  }
+  .node-anchor:hover { background: var(--accent); }
+  .node-anchor.top { left: 50%; top: 0; }
+  .node-anchor.right { left: 100%; top: 50%; }
+  .node-anchor.bottom { left: 50%; top: 100%; }
+  .node-anchor.left { left: 0; top: 50%; }
+  body.tool-connect .node:hover .node-anchor { opacity: 1; }
+
+  /* color popover */
+  .color-pop { position: absolute; display: none; gap: 6px; padding: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+    box-shadow: var(--shadow-md); z-index: 100; flex-wrap: wrap; max-width: 180px; }
+  .color-pop.show { display: flex; }
+  .color-swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform var(--ease); }
+  .color-swatch:hover { transform: scale(1.15); }
+
+  /* zoom controls (floating, bottom-right) */
+  .zoom-ctl {
+    position: absolute; bottom: 16px; right: 16px; display: flex; flex-direction: column;
+    gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-sm); box-shadow: var(--shadow-md); z-index: 20;
+  }
+  .zoom-btn { width: 30px; height: 28px; display: grid; place-items: center;
+    border: none; background: transparent; color: var(--muted); border-radius: var(--r-xs);
+    cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem; }
+  .zoom-btn:hover { color: var(--fg); background: var(--surface-2); }
+  .zoom-label { font-family: var(--font-mono); font-size: 0.6rem; color: var(--faint);
+    text-align: center; padding: 2px 0; }
+
+  .board-hint-overlay {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--faint); pointer-events: none; z-index: 1;
+    background: var(--surface); padding: 4px 12px; border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+  }
+
+  /* AI rail (kept from original; rules below are board-local) */
+  .ai-rail { width: 300px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
+  .ai-rail.is-collapsed { display: none; }
+  .ai-rail .ai-head { display: flex; align-items: center; gap: 9px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+  .ai-rail .ai-head .eyebrow { color: var(--patina); }
+  .ai-rail .rail-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; }
+  .rail-foot { flex-shrink: 0; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .rail-foot .chat-input-row { margin-top: 0; }
+  .hint { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+  .ai-empty { font-size: 0.8rem; color: var(--muted); font-family: var(--font-mono); line-height: 1.7; }
+
+  /* right-click context menu */
+  .ctx-menu {
+    position: fixed; z-index: 200; min-width: 180px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-sm); box-shadow: var(--shadow-lg);
+    padding: 4px; font-size: 0.84rem;
+  }
+  .ctx-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 7px 10px; border: none; background: transparent; color: var(--text);
+    text-align: left; cursor: pointer; border-radius: var(--r-xs);
+    font-family: var(--font-body); font-size: 0.84rem;
+    transition: background var(--ease);
+  }
+  .ctx-item:hover { background: var(--surface-2); }
+  .ctx-item.danger { color: var(--warn); }
+  .ctx-item.danger:hover { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* node search */
+  .node-search {
+    position: absolute; top: 16px; right: 16px; z-index: 30;
+    width: 260px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-sm); box-shadow: var(--shadow-md); padding: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .node-search .input { width: 100%; }
+  .node-search-results { max-height: 240px; overflow-y: auto; }
+  .node-search-results .ctx-item { width: 100%; }
+
+  /* boards list in sidebar */
+  .nav-item.board-item { padding-right: 28px; position: relative; }
+  .nav-item.board-item .board-del {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; display: grid; place-items: center;
+    border: none; background: transparent; color: var(--muted);
+    border-radius: var(--r-xs); cursor: pointer; opacity: 0; transition: opacity var(--ease);
+  }
+  .nav-item.board-item:hover .board-del { opacity: 1; }
+  .nav-item.board-item .board-del:hover { color: var(--warn); }
+  .nav-item.board-item.active { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="win">
+
+  <header class="titlebar pywebview-drag-region">
+    <div class="tb-left">
+      <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
+      <span class="brand-name">note·taker</span>
+    </div>
+    <span class="tb-crumb">Board — <b>canvas</b></span>
+    <span class="tb-spacer"></span>
+    <button class="icon-btn" data-palette-toggle title="Cycle palette — notebook / blueprint / aurora" aria-label="Switch palette">
+      <span class="pal-swatch"></span>
+    </button>
+    <button class="icon-btn" data-theme-toggle title="Toggle light / dark" aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <div class="winctl">
+      <button data-win="min" aria-label="Minimise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg></button>
+      <button data-win="max" aria-label="Maximise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+      <button class="close" data-win="close" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidebar" aria-label="Primary">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
+        <span>
+          <span class="brand-name">note·taker</span>
+          <span class="brand-sub">local · private</span>
+        </span>
+      </a>
+
+      <div class="nav">
+        <span class="nav-label">Workspace</span>
+        <a class="nav-item" href="library.html" data-od-id="nav-library">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></svg>
+          Notes & Recordings
+        </a>
+        <a class="nav-item" href="record.html" data-od-id="nav-record">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg>
+          Capture <span class="nav-count">3</span>
+        </a>
+        <span class="nav-label">Boards</span>
+        <div id="boardsList"></div>
+        <a class="nav-item" href="#" id="newBoardBtn" data-od-id="nav-new-board">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg>
+          New board
+        </a>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="foot-meta">board · local-only<br>v2.0 · kinpaku build</div>
+      </div>
+    </nav>
+
+    <main class="main" data-od-id="board-main">
+      <div class="board-layout">
+
+        <section class="board-col">
+          <div class="board-toolbar">
+            <div class="tool-bar" role="group" aria-label="Tools">
+              <button class="tool active" data-tool="select" title="Select / pan (V)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 3 7.5 18 2.7-7.8L21 10.5z"/></svg></button>
+              <button class="tool" data-tool="note" title="Add note (N)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button class="tool" data-tool="image" title="Add image (I)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+              <span class="tool-sep"></span>
+              <button class="tool" data-tool="connect" title="Connect notes (C)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 12h10"/></svg></button>
+            </div>
+            <span class="grow"></span>
+            <span class="board-count" id="boardCount">0 notes</span>
+            <button class="btn btn-ghost" id="aiToggle" data-od-id="btn-ai-toggle" aria-pressed="false">AI rail</button>
+          </div>
+
+          <div class="board-viewport" id="viewport">
+            <div class="board-world" id="world">
+              <svg class="edge-layer" id="edgeLayer" width="1" height="1"></svg>
+              <!-- nodes appended here -->
+            </div>
+            <div class="board-hint-overlay" id="hintOverlay">drag empty space to pan · scroll to zoom · double-click to add a note</div>
+            <div class="zoom-ctl">
+              <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+              <span class="zoom-label" id="zoomLabel">100%</span>
+              <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+              <button class="zoom-btn" id="zoomFit" title="Reset view" style="font-size:0.7rem;">⟲</button>
+            </div>
+          </div>
+
+          <input type="file" id="imageInput" accept=".png,.jpg,.jpeg,.gif,.webp" hidden />
+
+          <!-- right-click context menu -->
+          <div class="ctx-menu" id="ctxMenu" style="display:none;"></div>
+          <!-- node search box -->
+          <div class="node-search" id="nodeSearch" style="display:none;">
+            <input class="input" id="nodeSearchInput" type="search" placeholder="Search nodes…" autocomplete="off" />
+            <button class="icon-btn" id="nodeSearchClose" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            <div class="node-search-results" id="nodeSearchResults"></div>
+          </div>
+        </section>
+
+        <aside class="ai-rail is-collapsed" id="aiRail" data-od-id="ai-rail">
+          <div class="ai-head">
+            <span class="tag is-patina"><span class="dot"></span> AI · optional</span>
+            <span class="grow"></span>
+            <span class="hint">on demand</span>
+          </div>
+          <div class="rail-scroll">
+            <div class="ai-summary" id="aiSummary">
+              <p class="ai-empty" style="margin:0;">Ask the board for a summary, a grouping, or action items — generated locally via Ollama, never in the way.</p>
+            </div>
+            <div class="chip-row" style="margin-top:14px;">
+              <button class="chip" data-prompt="summary">Summarise board</button>
+              <button class="chip" data-prompt="group">Group by topic</button>
+              <button class="chip" data-prompt="actions">Action items</button>
+            </div>
+            <div class="chat-scroll" id="chatLog" style="margin-top:14px; max-height:260px;"></div>
+          </div>
+          <div class="rail-foot">
+            <div class="chat-input-row">
+              <input class="input" id="chatInput" placeholder="Ask about the board…" />
+              <button class="btn btn-primary" id="chatSend" aria-label="Send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg></button>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/app.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   note·taker — Miro-style node board
+   Pan/zoom canvas + resizable/recolorable notes + edge connectors
+   + image nodes. Server (/api/board) is source of truth; localStorage
+   nt-board is an offline cache. The old "add flow" race (loadBoard
+   wiping the DOM mid-add) is gone: we await load before enabling input
+   and never do innerHTML wipes during edits.
+   ============================================================ */
+
+const viewport = document.getElementById('viewport');
+const world = document.getElementById('world');
+const edgeLayer = document.getElementById('edgeLayer');
+const boardCount = document.getElementById('boardCount');
+const navBoardCount = document.getElementById('navBoardCount');
+const hintOverlay = document.getElementById('hintOverlay');
+const zoomLabel = document.getElementById('zoomLabel');
+const imageInput = document.getElementById('imageInput');
+
+let nodes = [];          // [{id,x,y,w,h,text,c,kind,image}]
+let edges = [];          // [{id,from,to,color,label}]
+let view = { x: 0, y: 0, zoom: 1 };
+let selectedId = null;
+let tool = 'select';     // 'select' | 'note' | 'image' | 'connect'
+let loaded = false;      // gate input until first load completes
+let currentBoardId = ''; // resolved from ?b= or first board
+let currentBoardName = '';
+
+const COLORS = [null, 'sp1', 'sp2', 'sp3', 'sp4', 'sp5'];  // index 0 = accent (neutral)
+const MIN_W = 150, MIN_H = 90;
+
+function newId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function storeKey() { return 'nt-board-' + (currentBoardId || 'default'); }
+
+/* ---------- persistence (scoped to the current board) ---------- */
+function cacheRead() {
+  try { const raw = localStorage.getItem(storeKey()); const d = raw ? JSON.parse(raw) : null;
+    return d && Array.isArray(d.nodes) ? d : null; } catch (e) { return null; }
+}
+function cacheWrite() {
+  try { localStorage.setItem(storeKey(), JSON.stringify({ nodes, edges, view })); } catch (e) {}
+}
+let putTimer = null;
+function persist() {
+  cacheWrite();
+  clearTimeout(putTimer);
+  putTimer = setTimeout(putBoard, 350);
+}
+async function putBoard() {
+  if (!currentBoardId) return;
+  try {
+    await fetch('/api/boards/' + currentBoardId, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes, edges }),
+    });
+  } catch (e) { /* offline — cache still holds the board */ }
+}
+
+async function loadBoard() {
+  let data = null;
+  try {
+    const res = await fetch('/api/boards/' + currentBoardId);
+    if (res.ok) data = await res.json();
+  } catch (e) { data = null; }
+  if (data && Array.isArray(data.nodes)) {
+    nodes = data.nodes;
+    edges = (data.edges || []).map((e) => ({
+      id: e.id, from: e.from || e.from_id, to: e.to || e.to_id,
+      color: e.color || 0, label: e.label || '',
+    }));
+    if (data.board) currentBoardName = data.board.name || '';
+  } else {
+    const cache = cacheRead();
+    nodes = cache ? cache.nodes : [];
+    edges = cache ? (cache.edges || []) : [];
+    view = cache && cache.view ? cache.view : view;
+  }
+  nodes.forEach((n) => {
+    if (!n.h) n.h = 160; if (!n.image) n.image = '';
+    if (!n.kind) n.kind = 'note'; if (!n.w) n.w = 220;
+  });
+  cacheWrite();
+  renderAll();
+  applyView();
+  loaded = true;
+  refreshCount();
+  updateBreadcrumb();
+}
+
+/* ---------- board list (sidebar) ---------- */
+async function loadBoardList() {
+  let boards = [];
+  try { const res = await fetch('/api/boards'); if (res.ok) { const d = await res.json(); boards = d.boards || []; } } catch (e) {}
+  if (!boards.length) return;
+  // resolve the current board from ?b= or fall back to the first
+  const params = new URLSearchParams(location.search);
+  const qId = params.get('b');
+  if (qId && boards.find((b) => b.id === qId)) currentBoardId = qId;
+  else currentBoardId = boards[0].id;
+  // render the list
+  const list = document.getElementById('boardsList');
+  list.innerHTML = '';
+  boards.forEach((b) => {
+    const a = document.createElement('a');
+    a.className = 'nav-item board-item' + (b.id === currentBoardId ? ' active' : '');
+    a.href = 'board.html?b=' + b.id;
+    const icon = document.createElement('span'); icon.style.flexShrink = '0';
+    icon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+    const label = document.createElement('span'); label.textContent = b.name; label.style.flex = '1'; label.style.minWidth = '0';
+    label.style.whiteSpace = 'nowrap'; label.style.overflow = 'hidden'; label.style.textOverflow = 'ellipsis';
+    const del = document.createElement('button'); del.className = 'board-del'; del.title = 'Delete board';
+    del.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+    del.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm('Delete "' + b.name + '" and all its nodes?')) return;
+      await fetch('/api/boards/' + b.id, { method: 'DELETE' });
+      window.location.href = 'board.html';
+    });
+    a.appendChild(icon); a.appendChild(label); a.appendChild(del);
+    list.appendChild(a);
+  });
+}
+
+function updateBreadcrumb() {
+  const crumb = document.querySelector('.tb-crumb');
+  if (crumb && currentBoardName) crumb.innerHTML = 'Board — <b>' + currentBoardName + '</b>';
+}
+
+/* ---------- new board ---------- */
+document.getElementById('newBoardBtn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const name = prompt('Board name:', 'New board');
+  if (!name || !name.trim()) return;
+  try {
+    const res = await fetch('/api/boards', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    const board = await res.json();
+    window.location.href = 'board.html?b=' + board.id;
+  } catch (err) { window.nt && window.nt.toast('Could not create board.'); }
+});
+
+/* ---------- view (pan/zoom) ---------- */
+function applyView() {
+  world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')';
+  zoomLabel.textContent = Math.round(view.zoom * 100) + '%';
+  // keep the grid background aligned by offsetting it
+  const gs = 24;
+  viewport.style.backgroundPosition =
+    (view.x % (gs * view.zoom)) + 'px ' + (view.y % (gs * view.zoom)) + 'px, ' +
+    (view.x % (gs * view.zoom)) + 'px ' + (view.y % (gs * view.zoom)) + 'px, 0 0';
+}
+function screenToWorld(clientX, clientY) {
+  const r = viewport.getBoundingClientRect();
+  return {
+    x: (clientX - r.left - view.x) / view.zoom,
+    y: (clientY - r.top - view.y) / view.zoom,
+  };
+}
+function zoomAt(factor, cx, cy) {
+  const r = viewport.getBoundingClientRect();
+  const px = (cx != null ? cx : r.width / 2);
+  const py = (cy != null ? cy : r.height / 2);
+  const newZoom = Math.max(0.3, Math.min(2.5, view.zoom * factor));
+  const realFactor = newZoom / view.zoom;
+  // keep the point under the cursor stable
+  view.x = px - (px - view.x) * realFactor;
+  view.y = py - (py - view.y) * realFactor;
+  view.zoom = newZoom;
+  applyView();
+  persist();
+}
+
+/* ---------- rendering ---------- */
+function colorOf(c) {
+  // read the palette token so the bar/dot re-tint per palette/theme
+  if (!c || c < 1 || c > 5) return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  return getComputedStyle(document.documentElement).getPropertyValue('--sp' + c).trim();
+}
+
+function renderAll() {
+  // remove existing node elements (keep the svg + hint)
+  Array.from(world.querySelectorAll('.node')).forEach((el) => el.remove());
+  nodes.forEach((n) => createNodeEl(n));
+  renderEdges();
+}
+
+function createNodeEl(n) {
+  const el = document.createElement('div');
+  el.className = 'node kind-' + (n.kind || 'note');
+  el.dataset.id = n.id;
+  el.style.left = n.x + 'px';
+  el.style.top = n.y + 'px';
+  el.style.width = n.w + 'px';
+  el.style.height = n.h + 'px';
+
+  const bar = document.createElement('div');
+  bar.className = 'node-color-bar';
+  bar.style.background = colorOf(n.c);
+
+  const head = document.createElement('div');
+  head.className = 'node-head';
+  const dot = document.createElement('span'); dot.className = 'node-dot'; dot.style.background = colorOf(n.c);
+  const title = document.createElement('span'); title.className = 'node-title'; title.textContent = nodeTitle(n); title.title = 'Double-click to rename';
+  const tools = document.createElement('div'); tools.className = 'node-tools';
+  const colorBtn = mkTool('color', '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/></svg>', 'Color');
+  const delBtn = mkTool('del', '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>', 'Delete');
+  tools.appendChild(colorBtn); tools.appendChild(delBtn);
+  head.appendChild(dot); head.appendChild(title); head.appendChild(tools);
+
+  let body;
+  if (n.kind === 'image' && n.image) {
+    body = document.createElement('div'); body.className = 'node-body';
+    const img = document.createElement('img'); img.src = n.image; img.draggable = false;
+    body.appendChild(img);
+  } else {
+    body = document.createElement('div'); body.className = 'node-body';
+    body.contentEditable = 'true'; body.spellcheck = false;
+    body.dataset.placeholder = 'Type…';
+    body.innerText = n.text || '';
+  }
+
+  // anchors (for connect tool)
+  const aT = mkAnchor('top'), aR = mkAnchor('right'), aB = mkAnchor('bottom'), aL = mkAnchor('left');
+
+  // resize handle
+  const resize = document.createElement('div'); resize.className = 'node-resize';
+
+  el.appendChild(bar); el.appendChild(head); el.appendChild(body);
+  el.appendChild(aT); el.appendChild(aR); el.appendChild(aB); el.appendChild(aL);
+  el.appendChild(resize);
+  world.appendChild(el);
+
+  bindNode(el, n, { head, body, title, colorBtn, delBtn, resize, bar, dot, anchors: [aT, aR, aB, aL] });
+  return el;
+}
+
+function mkTool(cls, svg, title) {
+  const b = document.createElement('button');
+  b.className = 'node-tool ' + cls; b.title = title; b.innerHTML = svg;
+  return b;
+}
+function mkAnchor(side) {
+  const a = document.createElement('div');
+  a.className = 'node-anchor ' + side; a.dataset.side = side;
+  return a;
+}
+function nodeTitle(n) {
+  // Use first non-empty line of text as title, or "Image"/"Note".
+  if (n.kind === 'image') return 'image';
+  const first = (n.text || '').split('\n').map((s) => s.trim()).find(Boolean);
+  return first || 'note';
+}
+
+/* ---------- node interactions ---------- */
+function bindNode(el, n, refs) {
+  // drag (move) — listeners on document (not the head) so the drag never gets
+  // lost when the cursor passes over child elements (dot/title/tools). A small
+  // threshold distinguishes a click-to-select from a real drag, and edge redraws
+  // are coalesced into one per animation frame so dragging stays smooth.
+  refs.head.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.node-tool')) return;
+    e.stopPropagation();
+    selectNode(n.id);
+    const sx = e.clientX, sy = e.clientY;
+    const ox = n.x, oy = n.y;
+    let dragging = false;
+    let rafPending = false;
+
+    const move = (ev) => {
+      const dx = (ev.clientX - sx) / view.zoom;
+      const dy = (ev.clientY - sy) / view.zoom;
+      if (!dragging) {
+        // start the drag only past a small threshold, so a click just selects
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        dragging = true;
+        el.classList.add('is-dragging');
+      }
+      n.x = ox + dx;
+      n.y = oy + dy;
+      el.style.left = n.x + 'px';
+      el.style.top = n.y + 'px';
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(() => { rafPending = false; renderEdges(); });
+      }
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if (dragging) { el.classList.remove('is-dragging'); persist(); }
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+
+  // resize — same document-listener + threshold + rAF-coalesced redraw pattern
+  refs.resize.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    selectNode(n.id);
+    const sx = e.clientX, sy = e.clientY;
+    const ow = n.w, oh = n.h;
+    let dragging = false;
+    let rafPending = false;
+    const move = (ev) => {
+      const dx = (ev.clientX - sx) / view.zoom;
+      const dy = (ev.clientY - sy) / view.zoom;
+      if (!dragging) { if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; dragging = true; }
+      n.w = Math.max(MIN_W, ow + dx);
+      n.h = Math.max(MIN_H, oh + dy);
+      el.style.width = n.w + 'px'; el.style.height = n.h + 'px';
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(() => { rafPending = false; renderEdges(); });
+      }
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if (dragging) persist();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+
+  // body edit (text)
+  if (refs.body.contentEditable === 'true' || refs.body.isContentEditable) {
+    refs.body.addEventListener('input', () => {
+      n.text = refs.body.innerText;
+      refs.title.textContent = nodeTitle(n);
+      schedulePersist();
+    });
+    refs.body.addEventListener('blur', () => { n.text = refs.body.innerText; persist(); });
+    refs.body.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+
+  // title rename — triggered by double-clicking the head (single click grabs).
+  // The title itself is pointer-events:none unless actively being edited, so it
+  // never steals the grab.
+  refs.head.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.node-tool')) return;
+    e.stopPropagation();
+    refs.title.contentEditable = 'true';
+    refs.title.focus();
+    const range = document.createRange(); range.selectNodeContents(refs.title);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  });
+  refs.title.addEventListener('blur', () => {
+    refs.title.contentEditable = 'false';
+    const newTitle = refs.title.textContent.trim();
+    if (n.kind !== 'image') {
+      const lines = (n.text || '').split('\n');
+      lines[0] = newTitle;
+      n.text = lines.join('\n');
+      refs.body.innerText = n.text;
+    }
+    persist();
+  });
+  refs.title.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); refs.title.blur(); }
+    if (e.key === 'Escape') { refs.title.blur(); }
+  });
+
+  // color popover
+  refs.colorBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openColorPop(el, n, refs);
+  });
+
+  // delete
+  refs.delBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteNode(n.id);
+  });
+
+  // anchors (connect tool)
+  refs.anchors.forEach((a) => {
+    a.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      startEdgeFrom(n.id, a, e);
+    });
+  });
+}
+
+let persistTimer = null;
+function schedulePersist() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(persist, 600);
+}
+
+/* ---------- selection ---------- */
+function selectNode(id) {
+  selectedId = id;
+  document.querySelectorAll('.node').forEach((el) => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+}
+function clearSelection() {
+  selectedId = null;
+  document.querySelectorAll('.node.selected').forEach((el) => el.classList.remove('selected'));
+}
+
+/* ---------- color popover ---------- */
+let colorPopEl = null;
+function openColorPop(nodeEl, n, refs) {
+  closeColorPop();
+  const pop = document.createElement('div');
+  pop.className = 'color-pop show';
+  // neutral + 5 speaker colors
+  const opts = [0, 1, 2, 3, 4, 5];
+  opts.forEach((c) => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch';
+    const col = colorOf(c);
+    sw.style.background = col;
+    sw.title = c === 0 ? 'accent' : 'sp' + c;
+    sw.addEventListener('click', (e) => {
+      e.stopPropagation();
+      n.c = c;
+      refs.bar.style.background = col;
+      refs.dot.style.background = col;
+      closeColorPop();
+      persist();
+    });
+    pop.appendChild(sw);
+  });
+  nodeEl.appendChild(pop);
+  colorPopEl = pop;
+  setTimeout(() => document.addEventListener('pointerdown', closeColorPopOnOutside, true), 0);
+}
+function closeColorPop() {
+  if (colorPopEl) { colorPopEl.remove(); colorPopEl = null; }
+  document.removeEventListener('pointerdown', closeColorPopOnOutside, true);
+}
+function closeColorPopOnOutside(e) { if (colorPopEl && !colorPopEl.contains(e.target)) closeColorPop(); }
+
+/* ---------- nodes CRUD ---------- */
+function addNoteNode(wx, wy, text) {
+  const n = { id: newId(), x: wx - 110, y: wy - 40, w: 220, h: 130, text: text || '', c: 0, kind: 'note', image: '' };
+  nodes.push(n);
+  createNodeEl(n);
+  renderEdges();
+  selectNode(n.id);
+  persist();
+  refreshCount();
+  return n;
+}
+async function addImageNode(wx, wy, file) {
+  window.nt && window.nt.toast('Uploading image…');
+  const form = new FormData(); form.append('file', file);
+  try {
+    const res = await fetch('/api/board/image', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    // size the node to the image's aspect ratio (cap at 360 wide)
+    let w = 260, h = 200;
+    try {
+      const dims = await imgDims(data.url);
+      if (dims.w > 0) {
+        w = Math.min(360, Math.max(160, dims.w));
+        h = Math.min(360, Math.max(120, w * (dims.h / dims.w)));
+      }
+    } catch (e) {}
+    const n = { id: newId(), x: wx - w / 2, y: wy - h / 2, w: w, h: h, text: '', c: 0, kind: 'image', image: data.url };
+    nodes.push(n);
+    createNodeEl(n);
+    renderEdges();
+    selectNode(n.id);
+    persist();
+    refreshCount();
+  } catch (err) {
+    window.nt && window.nt.toast(err.message);
+  }
+}
+function imgDims(url) {
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.onload = () => resolve({ w: im.naturalWidth, h: im.naturalHeight });
+    im.onerror = () => resolve({ w: 0, h: 0 });
+    im.src = url;
+  });
+}
+function deleteNode(id) {
+  const n = nodes.find((x) => x.id === id);
+  nodes = nodes.filter((x) => x.id !== id);
+  // remove edges referencing it; if it was an image node, delete the image file
+  edges = edges.filter((e) => e.from !== id && e.to !== id);
+  if (n && n.kind === 'image' && n.image) {
+    const m = /\/api\/board\/image\/([^/]+)$/.exec(n.image);
+    if (m) fetch('/api/board/image/' + m[1], { method: 'DELETE' }).catch(() => {});
+  }
+  const el = world.querySelector('.node[data-id="' + id + '"]');
+  if (el) el.remove();
+  renderEdges();
+  persist();
+  refreshCount();
+  window.nt && window.nt.toast('Removed.');
+}
+
+function refreshCount() {
+  const c = nodes.length;
+  boardCount.textContent = c + (c === 1 ? ' note' : ' notes');
+  if (navBoardCount) navBoardCount.textContent = c;
+  hintOverlay.style.display = c ? 'none' : '';
+}
+
+/* ---------- edges (connectors) ---------- */
+function nodeCenter(n) { return { x: n.x + n.w / 2, y: n.y + n.h / 2 }; }
+function anchorPoint(n, side) {
+  switch (side) {
+    case 'top': return { x: n.x + n.w / 2, y: n.y };
+    case 'right': return { x: n.x + n.w, y: n.y + n.h / 2 };
+    case 'bottom': return { x: n.x + n.w / 2, y: n.y + n.h };
+    case 'left': return { x: n.x, y: n.y + n.h / 2 };
+  }
+  return nodeCenter(n);
+}
+function bestAnchorPair(a, b) {
+  const sides = ['top', 'right', 'bottom', 'left'];
+  let best = null, bestD = Infinity;
+  for (const sa of sides) {
+    for (const sb of sides) {
+      const pa = anchorPoint(a, sa), pb = anchorPoint(b, sb);
+      const d = (pa.x - pb.x) ** 2 + (pa.y - pb.y) ** 2;
+      if (d < bestD) { bestD = d; best = { pa, pb }; }
+    }
+  }
+  return best;
+}
+function bezierPath(pa, pb) {
+  // smooth horizontal-ish curve
+  const dx = Math.abs(pb.x - pa.x), dy = Math.abs(pb.y - pa.y);
+  const off = Math.max(40, Math.min(160, (dx + dy) / 3));
+  let c1x = pa.x, c1y = pa.y, c2x = pb.x, c2y = pb.y;
+  if (dx > dy) { c1x += (pb.x > pa.x ? off : -off); c2x -= (pb.x > pa.x ? off : -off); }
+  else { c1y += (pb.y > pa.y ? off : -off); c2y -= (pb.y > pa.y ? off : -off); }
+  return 'M' + pa.x + ',' + pa.y + ' C' + c1x + ',' + c1y + ' ' + c2x + ',' + c2y + ' ' + pb.x + ',' + pb.y;
+}
+function arrowHead(pb, c2x, c2y) {
+  // arrowhead pointing along the tangent at the end
+  const ang = Math.atan2(pb.y - c2y, pb.x - c2x);
+  const len = 8;
+  return (pb.x) + ',' + (pb.y) + ' ' +
+         (pb.x - len * Math.cos(ang - 0.4)) + ',' + (pb.y - len * Math.sin(ang - 0.4)) + ' ' +
+         (pb.x - len * Math.cos(ang + 0.4)) + ',' + (pb.y - len * Math.sin(ang + 0.4));
+}
+function renderEdges() {
+  // size the svg to cover all nodes (cheap; recomputed on every move)
+  let maxX = 0, maxY = 0;
+  nodes.forEach((n) => { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+  edgeLayer.setAttribute('width', Math.max(2000, maxX + 400));
+  edgeLayer.setAttribute('height', Math.max(2000, maxY + 400));
+  // clear
+  while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+  edges.forEach((e) => {
+    const a = nodes.find((x) => x.id === e.from), b = nodes.find((x) => x.id === e.to);
+    if (!a || !b) return;
+    const pair = bestAnchorPair(a, b);
+    const d = bezierPath(pair.pa, pair.pb);
+    // tangent end for arrowhead: approximate using c2
+    const c2 = { x: pair.pb.x, y: pair.pb.y };  // close enough for head direction via recompute
+    // invisible fat hit area
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('d', d); hit.setAttribute('class', 'edge-hit');
+    hit.dataset.edgeId = e.id;
+    hit.addEventListener('click', (ev) => { ev.stopPropagation(); deleteEdge(e.id); });
+    // visible path
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d); p.setAttribute('class', 'edge-path');
+    if (e.color) p.style.stroke = colorOf(e.color);
+    // arrowhead
+    const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    const c2x = pair.pb.x - (pair.pb.x - pair.pa.x) * 0.1;
+    const c2y = pair.pb.y - (pair.pb.y - pair.pa.y) * 0.1;
+    head.setAttribute('points', arrowHead(pair.pb, c2x, c2y));
+    head.setAttribute('fill', e.color ? colorOf(e.color) : getComputedStyle(document.documentElement).getPropertyValue('--muted').trim());
+    head.style.pointerEvents = 'none';
+    // label
+    if (e.label) {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      const mx = (pair.pa.x + pair.pb.x) / 2, my = (pair.pa.y + pair.pb.y) / 2;
+      t.setAttribute('x', mx); t.setAttribute('y', my - 4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', 'var(--font-mono)');
+      t.setAttribute('font-size', '10');
+      t.setAttribute('fill', getComputedStyle(document.documentElement).getPropertyValue('--muted').trim());
+      t.textContent = e.label;
+      t.style.pointerEvents = 'none';
+      edgeLayer.appendChild(t);
+    }
+    edgeLayer.appendChild(hit);
+    edgeLayer.appendChild(p);
+    edgeLayer.appendChild(head);
+  });
+  // provisional edge (during connect drag)
+  if (provisional) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', bezierPath(provisional.from, provisional.to));
+    p.setAttribute('class', 'edge-provisional');
+    edgeLayer.appendChild(p);
+  }
+}
+function deleteEdge(id) {
+  edges = edges.filter((e) => e.id !== id);
+  renderEdges();
+  persist();
+  window.nt && window.nt.toast('Connector removed.');
+}
+
+/* ---------- connect gesture ---------- */
+let provisional = null;  // {from:{x,y}, to:{x,y}, fromId}
+function startEdgeFrom(nodeId, anchorEl, e) {
+  const n = nodes.find((x) => x.id === nodeId);
+  if (!n) return;
+  const start = anchorPoint(n, anchorEl.dataset.side);
+  provisional = { fromId: nodeId, from: start, to: screenToWorld(e.clientX, e.clientY) };
+  renderEdges();
+  const move = (ev) => {
+    provisional.to = screenToWorld(ev.clientX, ev.clientY);
+    renderEdges();
+  };
+  const up = (ev) => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    // find the node under the cursor
+    const wpt = screenToWorld(ev.clientX, ev.clientY);
+    const target = nodes.find((x) => x.id !== nodeId && wpt.x >= x.x && wpt.x <= x.x + x.w && wpt.y >= x.y && wpt.y <= x.y + x.h);
+    provisional = null;
+    renderEdges();
+    if (target) {
+      const eid = 'e' + Date.now().toString(36);
+      edges.push({ id: eid, from: nodeId, to: target.id, color: 0, label: '' });
+      renderEdges(); persist();
+      window.nt && window.nt.toast('Connected.');
+    }
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
+/* ---------- pan + viewport interactions ---------- */
+// Panning is ALWAYS available by dragging empty space, regardless of the active
+// tool. Tools (note/image) place on a *click* (pointerdown→pointerup with <4px
+// movement), so a drag never accidentally drops a note. Spacebar-drag and
+// middle-mouse also pan as an escape hatch while a tool is active.
+let spaceDown = false;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.target.isContentEditable && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+    spaceDown = true; viewport.style.cursor = 'grab';
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') { spaceDown = false; viewport.style.cursor = ''; }
+});
+
+viewport.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.node') || e.target.closest('.edge-hit') || e.target.closest('.zoom-ctl') || e.target.closest('.color-pop') || e.target.closest('.ctx-menu')) return;
+  if (!loaded) return;
+  // middle-mouse or spacebar held → always pan
+  const forcePan = (e.button === 1) || spaceDown;
+  if (e.button === 2) return;  // right-click handled by contextmenu
+  const wpt = screenToWorld(e.clientX, e.clientY);
+  clearSelection();
+  closeColorPop();
+  let panned = false;
+  let placed = false;
+  const sx = e.clientX, sy = e.clientY, ox = view.x, oy = view.y;
+  const move = (ev) => {
+    const dx = ev.clientX - sx, dy = ev.clientY - sy;
+    if (!panned && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      panned = true;
+      viewport.classList.add('panning');
+    }
+    if (panned) {
+      view.x = ox + dx; view.y = oy + dy; applyView();
+    }
+  };
+  const up = (ev) => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    viewport.classList.remove('panning');
+    // It was a click (no drag) → apply the active tool (unless forced pan).
+    if (!panned && !forcePan) {
+      if (tool === 'note') { addNoteNode(wpt.x, wpt.y); placed = true; }
+      else if (tool === 'image') { imageInput.value = ''; imageInput._dropPt = wpt; imageInput.click(); placed = true; }
+    }
+    if (panned) persist();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+});
+
+viewport.addEventListener('dblclick', (e) => {
+  if (e.target.closest('.node') || e.target.closest('.edge-hit')) return;
+  if (!loaded) return;
+  const wpt = screenToWorld(e.clientX, e.clientY);
+  addNoteNode(wpt.x, wpt.y, '');
+});
+
+viewport.addEventListener('wheel', (e) => {
+  if (!loaded) return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  const r = viewport.getBoundingClientRect();
+  zoomAt(factor, e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+// image input (file picker)
+imageInput.addEventListener('change', () => {
+  const f = imageInput.files[0];
+  if (!f) return;
+  const pt = imageInput._dropPt || { x: 0, y: 0 };
+  addImageNode(pt.x, pt.y, f);
+});
+
+// drag-drop images onto the canvas (or onto a note)
+viewport.addEventListener('dragover', (e) => { if (e.dataTransfer && e.dataTransfer.types.includes('Files')) { e.preventDefault(); } });
+viewport.addEventListener('drop', (e) => {
+  if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  const f = e.dataTransfer.files[0];
+  if (!f.type.startsWith('image/')) return;
+  e.preventDefault();
+  const wpt = screenToWorld(e.clientX, e.clientY);
+  // dropped onto a note? attach as that note's image
+  const overNote = nodes.find((x) => wpt.x >= x.x && wpt.x <= x.x + x.w && wpt.y >= x.y && wpt.y <= x.y + x.h);
+  if (overNote && overNote.kind === 'note') {
+    uploadAndAttach(overNote, f);
+  } else {
+    addImageNode(wpt.x, wpt.y, f);
+  }
+});
+async function uploadAndAttach(n, file) {
+  window.nt && window.nt.toast('Attaching image…');
+  const form = new FormData(); form.append('file', file);
+  try {
+    const res = await fetch('/api/board/image', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    n.image = data.url; n.kind = 'image';
+    const el = world.querySelector('.node[data-id="' + n.id + '"]');
+    if (el) { el.classList.add('kind-image'); const body = el.querySelector('.node-body'); body.contentEditable = 'false'; body.innerHTML = '<img src="' + data.url + '" draggable="false">'; }
+    persist();
+    window.nt && window.nt.toast('Image attached.');
+  } catch (err) { window.nt && window.nt.toast(err.message); }
+}
+
+/* ---------- tool palette ---------- */
+document.querySelectorAll('.tool').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    tool = btn.dataset.tool;
+    document.querySelectorAll('.tool').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.body.className = 'tool-' + tool;
+    viewport.classList.remove('tool-select', 'tool-note', 'tool-image', 'tool-connect');
+    viewport.classList.add('tool-' + tool);
+  });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const map = { v: 'select', n: 'note', i: 'image', c: 'connect' };
+  const t = map[e.key.toLowerCase()];
+  if (t) { tool = t; document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
+    document.body.className = 'tool-' + t; viewport.className = 'board-viewport tool-' + t; }
+  if (e.key === 'Escape') { clearSelection(); closeColorPop(); provisional = null; renderEdges(); }
+});
+
+/* ---------- zoom buttons ---------- */
+document.getElementById('zoomIn').addEventListener('click', () => zoomAt(1.2));
+document.getElementById('zoomOut').addEventListener('click', () => zoomAt(1 / 1.2));
+document.getElementById('zoomFit').addEventListener('click', () => {
+  view = { x: 40, y: 40, zoom: 1 }; applyView(); persist();
+});
+
+/* ---------- AI rail (unchanged logic, adapted to nodes) ---------- */
+const aiRail = document.getElementById('aiRail');
+const aiToggle = document.getElementById('aiToggle');
+const aiSummary = document.getElementById('aiSummary');
+const chatLog = document.getElementById('chatLog');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+let boardChat = [];
+const PROMPTS = { summary: 'Give me a concise summary of what is on this board.', group: 'Group the cards by topic.', actions: 'List any action items from the cards.' };
+
+aiToggle.addEventListener('click', () => {
+  const collapsed = aiRail.classList.toggle('is-collapsed');
+  aiToggle.setAttribute('aria-pressed', String(!collapsed));
+});
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function pushMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  if (role === 'bot') { el.innerHTML = '<span class="msg-role">Note taker</span>' + esc(text).replace(/\n/g, '<br>'); }
+  else { el.textContent = text; }
+  chatLog.appendChild(el); chatLog.scrollTop = chatLog.scrollHeight; return el;
+}
+async function boardAsk(text) {
+  text = (text || '').trim(); if (!text) return;
+  pushMsg('user', text); chatInput.value = '';
+  boardChat.push({ role: 'user', content: text });
+  const pending = pushMsg('bot', '…');
+  try {
+    const res = await fetch('/api/board/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nodes, messages: boardChat }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || ('Request failed (' + res.status + ')'));
+    pending.innerHTML = '<span class="msg-role">Note taker</span>' + esc(data.reply || '').replace(/\n/g, '<br>');
+    boardChat.push({ role: 'assistant', content: data.reply || '' });
+  } catch (err) { pending.textContent = '⚠ ' + err.message; pending.style.color = 'var(--warn)'; }
+}
+chatSend.addEventListener('click', () => boardAsk(chatInput.value));
+chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') boardAsk(chatInput.value); });
+document.querySelectorAll('.chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    const p = PROMPTS[chip.dataset.prompt] || chip.dataset.prompt;
+    aiSummary.innerHTML = '<p class="ai-empty" style="margin:0;">Thinking…</p>';
+    boardAsk(p);
+  });
+});
+
+/* ---------- right-click context menu ---------- */
+const ctxMenu = document.getElementById('ctxMenu');
+function showCtxMenu(x, y, items) {
+  ctxMenu.innerHTML = '';
+  items.forEach((it) => {
+    if (it.sep) { const s = document.createElement('div'); s.className = 'ctx-sep'; ctxMenu.appendChild(s); return; }
+    const btn = document.createElement('button');
+    btn.className = 'ctx-item' + (it.danger ? ' danger' : '');
+    btn.textContent = it.label;
+    btn.addEventListener('click', () => { hideCtxMenu(); it.action && it.action(); });
+    ctxMenu.appendChild(btn);
+  });
+  ctxMenu.style.display = 'block';
+  // keep within viewport
+  const mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+  ctxMenu.style.left = Math.min(x, window.innerWidth - mw - 8) + 'px';
+  ctxMenu.style.top = Math.min(y, window.innerHeight - mh - 8) + 'px';
+}
+function hideCtxMenu() { ctxMenu.style.display = 'none'; }
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.ctx-menu')) hideCtxMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtxMenu(); });
+
+viewport.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (!loaded) return;
+  const nodeEl = e.target.closest('.node');
+  const wpt = screenToWorld(e.clientX, e.clientY);
+  if (nodeEl) {
+    const nid = nodeEl.dataset.id;
+    const n = nodes.find((x) => x.id === nid);
+    if (!n) return;
+    showCtxMenu(e.clientX, e.clientY, [
+      { label: 'Rename', action: () => { selectNode(nid); nodeEl.querySelector('.node-head').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); } },
+      { label: 'Connect from here…', action: () => { setTool('connect'); selectNode(nid); window.nt && window.nt.toast('Click another note to connect.'); } },
+      { label: 'Change color', action: () => { selectNode(nid); nodeEl.querySelector('.node-tool.color').click(); } },
+      { label: 'Duplicate', action: () => { const copy = Object.assign({}, n, { id: newId(), x: n.x + 30, y: n.y + 30 }); nodes.push(copy); createNodeEl(copy); renderEdges(); persist(); refreshCount(); } },
+      { sep: true },
+      { label: 'Search nodes…', action: () => openNodeSearch() },
+      { sep: true },
+      { label: 'Delete', danger: true, action: () => deleteNode(nid) },
+    ]);
+  } else {
+    showCtxMenu(e.clientX, e.clientY, [
+      { label: 'Add note here', action: () => addNoteNode(wpt.x, wpt.y, '') },
+      { label: 'Add image here', action: () => { imageInput.value = ''; imageInput._dropPt = wpt; imageInput.click(); } },
+      { label: 'Connect nodes', action: () => setTool('connect') },
+      { sep: true },
+      { label: 'Search nodes…', action: () => openNodeSearch() },
+      { sep: true },
+      { label: 'New board…', action: () => document.getElementById('newBoardBtn').click() },
+    ]);
+  }
+});
+
+/* ---------- node search ---------- */
+const nodeSearch = document.getElementById('nodeSearch');
+const nodeSearchInput = document.getElementById('nodeSearchInput');
+const nodeSearchResults = document.getElementById('nodeSearchResults');
+const nodeSearchClose = document.getElementById('nodeSearchClose');
+function openNodeSearch() {
+  nodeSearch.style.display = 'flex';
+  nodeSearchInput.value = '';
+  nodeSearchResults.innerHTML = '';
+  nodeSearchInput.focus();
+}
+function closeNodeSearch() { nodeSearch.style.display = 'none'; }
+nodeSearchClose.addEventListener('click', closeNodeSearch);
+nodeSearchInput.addEventListener('input', () => {
+  const q = nodeSearchInput.value.trim().toLowerCase();
+  nodeSearchResults.innerHTML = '';
+  if (!q) return;
+  const matches = nodes.filter((n) => (n.text || '').toLowerCase().includes(q)).slice(0, 12);
+  matches.forEach((n) => {
+    const btn = document.createElement('button');
+    btn.className = 'ctx-item';
+    const preview = (n.text || '').split('\n')[0].slice(0, 40);
+    btn.textContent = preview || 'untitled';
+    btn.addEventListener('click', () => { centerOnNode(n.id); closeNodeSearch(); });
+    nodeSearchResults.appendChild(btn);
+  });
+});
+function centerOnNode(id) {
+  const n = nodes.find((x) => x.id === id);
+  if (!n) return;
+  const vpRect = viewport.getBoundingClientRect();
+  view.x = vpRect.width / 2 - (n.x + n.w / 2) * view.zoom;
+  view.y = vpRect.height / 2 - (n.y + n.h / 2) * view.zoom;
+  applyView();
+  selectNode(id);
+  persist();
+}
+
+/* ---------- tool helper ---------- */
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
+  document.body.className = 'tool-' + t;
+  viewport.classList.remove('tool-select', 'tool-note', 'tool-image', 'tool-connect');
+  viewport.classList.add('tool-' + t);
+}
+
+/* ---------- boot ---------- */
+applyView();
+(async () => {
+  await loadBoardList();
+  await loadBoard();
+  applyView();
+})();
+</script>
+</body>
+</html>

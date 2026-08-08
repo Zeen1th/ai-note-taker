@@ -30,6 +30,50 @@ import time
 import urllib.request
 import webbrowser
 
+# Native (OS) titlebar is kept — it gives reliable drag, edge-resize, and
+# min/max/close for free. We theme it dark (DWMWA_USE_IMMERSIVE_DARK_MODE) so it
+# matches the app instead of being a jarring white strip. The in-app `.titlebar`
+# is therefore a *brand / nav strip*, not window chrome — its window-control
+# glyphs stay but are inert decoration; the real controls live in the OS bar.
+import webview as _wv  # noqa: F401  (kept for API stability / future use)
+
+
+def _apply_dark_titlebar(hwnd):
+    """Make the native OS titlebar dark so it fits the app's design.
+
+    No-op on pre-Win10 or if the DWM call fails — the bar just stays light,
+    which is ugly but fully functional (drag / resize / controls all work).
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        dwm = ctypes.windll.dwmapi
+        DWMWA_USE_IMMERSIVE_DARK_MODE = 20      # Win10 1809+ (newer builds)
+        DWMWA_CAPTION_COLOR = 35                 # Win11 22000+
+        DWMWA_BORDER_COLOR = 34                  # Win11 22000+
+        BOOL = ctypes.c_int
+        hwnd = wintypes.HWND(hwnd)
+        # Dark mode on.
+        dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                                  ctypes.byref(BOOL(1)), ctypes.sizeof(BOOL))
+        # Caption + border color = the app's notebook dark surface (#241f18).
+        for attr, color in ((DWMWA_CAPTION_COLOR, 0x181F24), (DWMWA_BORDER_COLOR, 0x181F24)):
+            # COLORREF is 0x00BBGGRR; #241f18 -> R=24 G=1f B=18 -> 0x00181F24
+            dwm.DwmSetWindowAttribute(hwnd, attr,
+                                      ctypes.byref(ctypes.c_uint(color)),
+                                      ctypes.sizeof(ctypes.c_uint))
+        # Force a frame redraw so the change shows immediately.
+        SWP_NOSIZE = 0x0001
+        SWP_NOMOVE = 0x0002
+        SWP_NOZORDER = 0x0004
+        SWP_FRAMECHANGE = 0x0020
+        user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0,
+                            SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGE)
+    except Exception:  # noqa: BLE001 — theming is cosmetic, never fatal
+        pass
+
 import pystray
 import uvicorn
 from PIL import Image, ImageDraw
@@ -72,7 +116,8 @@ SPLASH_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
  .ring{width:26px;height:26px;margin:24px auto 0;border:3px solid rgba(70,58,36,.18);
    border-top-color:#a8432a;border-radius:50%;animation:s .8s linear infinite}
  @keyframes s{to{transform:rotate(360deg)}}
-</style></head><body><div class="wrap">
+</style></head><body>
+ <div class="wrap">
  <div class="logo">&#127908;</div>
  <div class="name">note&#183;taker</div>
  <div class="sub">starting the local engine&#8230; first launch loads models (~15s)</div>
@@ -161,6 +206,50 @@ def _run_server():
 
 # ---- Native window (pywebview) ----
 
+class WindowApi:
+    """JS bridge exposed as `window.pywebview.api.*` inside the page.
+
+    The window object is created by the same create_window() call that takes this
+    instance as js_api, so it is wired in afterwards via ``bind()``. Public
+    methods (no leading underscore) become ``window.pywebview.api.<method>()``,
+    returning Promises to JS. All no-op gracefully if the window isn't bound.
+    """
+
+    def __init__(self):
+        self._win = None
+
+    def bind(self, win):
+        self._win = win
+    bind._serializable = False  # internal wiring; not exposed to JS
+
+    def minimize(self):
+        if self._win is not None:
+            self._win.minimize()
+
+    def toggle_maximize(self):
+        if self._win is None:
+            return
+        # The native OS bar is the real maximize control; this stays available
+        # for any future in-app control (e.g. browser fallback showing .winctl).
+        if self._win.evaluate_js("document.documentElement.classList.contains('is-maximized')"):
+            self._win.restore()
+        else:
+            self._win.maximize()
+
+    def close(self):
+        # Mirror _on_closing: hide to tray, don't destroy. Real quit is the tray
+        # menu's job, so the close glyph keeps the app's "runs in the tray" feel.
+        if self._win is not None:
+            self._win.hide()
+
+    def is_maximized(self):
+        return bool(self._win and self._win.evaluate_js(
+            "document.documentElement.classList.contains('is-maximized')"))
+
+
+_win_api = WindowApi()
+
+
 def _load_app_when_ready():
     """Poll the server; swap the native splash for the app once it answers."""
     for _ in range(600):  # up to ~5 min for first-run model downloads
@@ -185,6 +274,16 @@ def _on_closing():
     return False          # cancel the close
 
 
+def _eval_js_safe(js):
+    """evaluate_js is only valid while the window exists and is loaded."""
+    if window is None:
+        return
+    try:
+        window.evaluate_js(js)
+    except Exception:  # noqa: BLE001 — window not ready / already gone
+        pass
+
+
 def _run_native():
     """Show the native window and block until it's destroyed.
 
@@ -201,12 +300,25 @@ def _run_native():
         window = webview.create_window(
             "AI Note-Taker",
             html=SPLASH_HTML,
+            js_api=_win_api,
             width=1240,
             height=820,
             min_size=(940, 620),
             background_color="#e9e1ce",
         )
+        _win_api.bind(window)
+
+        # Theme the native OS titlebar dark to match the app once the form exists.
+        def _on_shown(*a):
+            try:
+                form = getattr(window, "native", None)
+                if form is not None:
+                    _apply_dark_titlebar(int(form.Handle.ToInt32()))
+            except Exception:  # noqa: BLE001
+                pass
+
         window.events.closing += _on_closing
+        window.events.shown += _on_shown
         _native_active = True
         threading.Thread(target=_load_app_when_ready, daemon=True).start()
         webview.start(private_mode=False, storage_path=WEBVIEW_STORAGE)
@@ -306,10 +418,42 @@ def _quit(icon=None, item=None):
         tray.stop()
 
 
+def _disable_webview_cache():
+    """Force WebView2 to never serve stale static assets from its disk cache.
+
+    Problem: WebView2 caches kinpaku.css / app.js on disk and re-serves the old
+    copy after an update, ignoring HTTP Cache-Control headers. That made every
+    frontend change invisible until the cache was hand-cleared. We append
+    Chromium flags that disable the HTTP disk cache entirely. Local dev server
+    is fast, so always re-fetching is fine and guarantees a code change always
+    shows up. Patched at runtime (not in the venv) so it survives reinstalls.
+    """
+    try:
+        from webview.platforms import edgechromium
+
+        _orig_init = edgechromium.EdgeChrome.__init__
+
+        def _patched(self, *a, **kw):
+            _orig_init(self, *a, **kw)
+            # Append to whatever AdditionalBrowserArguments pywebview already set.
+            # --disable-cache stops the HTTP disk cache so a CSS/JS edit always shows.
+            # (Avoid --incognito: it conflicts with pywebview's own profile handling.)
+            flags = " --disable-cache"
+            try:
+                self.webview.CreationProperties.AdditionalBrowserArguments += flags
+            except Exception:  # noqa: BLE001
+                pass
+
+        edgechromium.EdgeChrome.__init__ = _patched
+    except Exception:  # noqa: BLE001 — non-fatal; cache just stays on
+        pass
+
+
 def main():
     global tray
 
     _setup_logging()  # valid stdout/stderr + a persistent log under pythonw
+    _disable_webview_cache()  # never serve stale CSS/JS from the WebView2 cache
 
     # Single instance: if we can't grab the lock, another instance is already
     # running or starting. Best effort: open a browser window against it if the

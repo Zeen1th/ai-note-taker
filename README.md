@@ -1,6 +1,12 @@
 # AI Note-Taker
 
-A fully **local** web app: upload an audio or video recording, and it
+A fully **local** note taker that works two ways:
+
+**📝 General notes (no AI needed).** A plain Markdown note editor — create,
+edit, preview, searchless-but-simple library of notes stored in SQLite.
+The app **starts instantly** (~2s) and needs no GPU, no Ollama, and no models.
+
+**🎙️ AI transcription (on demand).** Upload an audio or video recording and it
 
 1. **Transcribes** it and **identifies speakers** (Speaker 1, Speaker 2, …) with WhisperX.
 2. **Generates structured notes** from the speaker-labeled transcript using a local LLM (Ollama / Qwen3).
@@ -8,8 +14,10 @@ A fully **local** web app: upload an audio or video recording, and it
 4. Lets you **chat** with the local LLM about the recording.
 5. **Saves every session** to a local library so you can revisit, rename, or delete past recordings.
 
-No external APIs, no API keys, no cloud calls — everything runs on your machine.
-Target hardware: a GPU with ~12 GB VRAM.
+The WhisperX / diarization models load **lazily on first transcription**
+— not at startup — and Ollama is only contacted when you actually need
+notes or chat. No external APIs, no API keys, no cloud calls — everything
+runs on your machine. Target hardware: a GPU with ~12 GB VRAM.
 
 ## Pipeline
 
@@ -122,14 +130,16 @@ python -m uvicorn app:app --reload
 > module named 'dotenv'`.
 
 Open http://localhost:8000, choose a recording (`.mp3 .mp4 .m4a .wav .mov .webm`),
-and click **Transcribe**.
+and click **Transcribe** — or just start typing a plain note: that works
+immediately with no setup at all.
 
-> ⏳ **First run is slow:** WhisperX downloads the Whisper + alignment +
-> diarization models the first time. They are cached afterwards.
+> ⏳ **First transcription is slow:** the Whisper + alignment + diarization
+> models download and load the first time you transcribe (not at startup —
+> the app itself opens in ~2s). They are cached afterwards.
 >
-> ⚡ **Faster startup:** once the models are cached, set `HF_HUB_OFFLINE=1` in
-> `.env` to skip Hugging Face's per-launch update checks — this cuts boot time
-> from ~50s to ~12s. (Set it back to `0` if you change `WHISPER_MODEL` to one
+> ⚡ **Faster transcription startup:** once the models are cached, set `HF_HUB_OFFLINE=1` in
+> `.env` to skip Hugging Face's per-launch update checks — this cuts model
+> load time from ~50s to ~12s. (Set it back to `0` if you change `WHISPER_MODEL` to one
 > you haven't downloaded yet.)
 
 ### Desktop app
@@ -198,13 +208,20 @@ exhaust 12 GB.
 
 ## How it works
 
-- `POST /api/transcribe` — saves the upload to a temp file, runs WhisperX
-  (transcribe → align → diarize → assign speakers), builds a speaker-labeled
-  `transcript` + `segments`, generates `notes` via Ollama, and returns
-  `{ transcript, segments, notes }`.
+- `GET /` — single-page frontend with a **Notes** section (plain Markdown
+  notes, no AI) and a **Recordings** section (AI sessions).
+- `GET/POST/PATCH/DELETE /api/notes[/{id}]` — the general note taker: plain
+  Markdown notes stored in the same SQLite db. Works with no GPU / Ollama /
+  WhisperX installed.
+- `POST /api/transcribe` — saves the upload to a temp file, lazily loads
+  WhisperX (transcribe → align → diarize → assign speakers), builds a
+  speaker-labeled `transcript` + `segments`, generates `notes` via Ollama,
+  and returns `{ transcript, segments, notes }`.
 - `POST /api/chat` — body `{ transcript, messages }`. The transcript is sent in
   the system prompt with each request (the backend is **stateless**); returns
   `{ reply }`.
+- `GET /api/status` — what's loaded right now (Whisper model, diarization,
+  Ollama reachability, CUDA) so the UI can show "AI ready / on demand".
 - `GET/PATCH/DELETE /api/sessions[/{id}]` — the saved-session library. Each
   finished transcription is stored in a local SQLite db (`data/sessions.db`)
   with its audio under `data/audio/`, so it survives restarts.
@@ -215,17 +232,17 @@ in order of first appearance.
 ## Project structure
 
 ```
-app.py              FastAPI backend (WhisperX + Ollama + session store)
+app.py              FastAPI backend (WhisperX + Ollama + notes + sessions)
 desktop.py          Native desktop window launcher (pywebview)
 requirements.txt
-static/index.html   Single-page frontend
+static/index.html   Single-page frontend (notes editor + transcription UI)
 docs/pipeline.svg   Pipeline diagram
-data/               Saved sessions (SQLite + audio) — git-ignored, created at runtime
+data/               Saved sessions + plain notes (SQLite) + audio — git-ignored, created at runtime
 .env.example
 README.md
 ```
 
 ## Not included (future polish)
 Renaming speakers within the transcript, setting the expected number of speakers,
-chunking very long recordings, audio playback synced to the transcript, and
-search across saved sessions.
+chunking very long recordings, audio playback synced to the transcript, search
+across saved sessions and notes, and exporting notes/transcripts to files.

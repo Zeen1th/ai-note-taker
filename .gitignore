@@ -25,6 +25,7 @@ Thumbs.db
 
 # Local agent config
 .claude/
+.zcode/
 
 # Saved sessions (SQLite db + audio recordings)
 data/

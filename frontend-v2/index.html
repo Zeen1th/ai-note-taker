@@ -9,8 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Onest:wght@300;400;500;600;700&family=Caveat:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/kinpaku.css">
 <style>
-  body { overflow: auto; display: flex; flex-direction: column; }
-  .launcher { max-width: 1080px; margin: 0 auto; padding: 34px 30px 70px; flex: 1; }
+  body { overflow: auto; }
+  .launcher { max-width: 1080px; margin: 0 auto; padding: 34px 30px 70px; }
+  .topline { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
+  .topline .grow { flex: 1; }
+  .topline .eyebrow { color: var(--faint); }
   .hero .h-display { font-size: clamp(3.2rem, 7vw, 6rem); }
   .hero .h-display em { font-style: normal; color: var(--accent); }
   .hero-meta { display: flex; align-items: center; gap: 14px; margin-top: 22px; flex-wrap: wrap; }
@@ -28,29 +31,20 @@
 </style>
 </head>
 <body>
+<div class="launcher">
 
-  <header class="titlebar pywebview-drag-region">
-    <div class="tb-left">
-      <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
-      <span class="brand-name">note·taker</span>
-    </div>
-    <span class="tb-crumb">note·taker — <b>desktop</b></span>
-    <span class="tb-spacer"></span>
-    <span class="status-pill" id="statusPill" title=""><span class="dot"></span> local · private</span>
+  <div class="topline">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="var(--on-accent)" opacity="0.25"/><path d="M3 3l18 18" stroke="var(--on-accent)" stroke-width="2.4"/></svg></span>
+    <span class="mono eyebrow">note·taker — desktop</span>
+    <span class="grow"></span>
     <button class="icon-btn" data-palette-toggle title="Cycle palette — notebook / blueprint / aurora" aria-label="Switch palette">
       <span class="pal-swatch"></span>
     </button>
     <button class="icon-btn" data-theme-toggle title="Toggle light / dark" aria-label="Toggle theme">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
     </button>
-    <div class="winctl">
-      <button data-win="min" aria-label="Minimise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg></button>
-      <button data-win="max" aria-label="Maximise"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
-      <button class="close" data-win="close" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    </div>
-  </header>
-
-<div class="launcher">
+    <span class="status-pill"><span class="dot"></span> local · private</span>
+  </div>
 
   <header class="hero">
     <h1 class="h-display">A note taker.<br>Not an <em>AI</em> note taker.</h1>
@@ -129,21 +123,5 @@
 </div>
 
 <script src="assets/app.js"></script>
-<script>
-  // Render the launcher's status pill with the real local-AI state.
-  (async function () {
-    const pill = document.getElementById('statusPill');
-    if (!pill) return;
-    try {
-      const s = await (await fetch('/api/status')).json();
-      const aiReady = s.whisper && s.ollama;
-      pill.innerHTML = '<span class="dot"></span> local · ' + (aiReady ? 'AI ready' : 'AI on demand');
-      pill.title =
-        'Whisper (' + s.whisper_model + ', ' + s.whisper_device + '): ' + (s.whisper ? 'loaded' : 'loads on first transcription') + '\n' +
-        'Diarization: ' + (s.diarization ? 'on' : (s.diarize_error || 'off')) + '\n' +
-        'Ollama (' + s.ollama_model + '): ' + (s.ollama ? 'running' : 'not running');
-    } catch (e) { /* leave the static pill as-is */ }
-  })();
-</script>
 </body>
 </html>
