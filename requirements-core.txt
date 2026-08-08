@@ -1,0 +1,10 @@
+# Core dependencies — enough for notes, boards, and library (no AI).
+# Install with:  pip install -r requirements-core.txt
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+pywebview        # native desktop window (WebView2); falls back to a browser app-window
+pystray          # system-tray icon for the desktop app
+pillow           # tray icon image
