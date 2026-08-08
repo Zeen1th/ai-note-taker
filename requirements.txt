@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-python-dotenv
-whisperx
-ollama
-pywebview        # native desktop window (WebView2); falls back to a browser app-window
-pystray          # system-tray icon for the desktop app
-pillow           # tray icon image (also pulled in by whisperx)

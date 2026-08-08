@@ -1,0 +1,8 @@
+# AI sidecar dependencies — only what the Python transcribe/chat server needs.
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+whisperx
+ollama

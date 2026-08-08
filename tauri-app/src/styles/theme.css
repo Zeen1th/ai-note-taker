@@ -1,0 +1,135 @@
+/* ============================================================
+   note·taker — Tauri/React theme
+   Ported from kinpaku.css. Three palettes × light/dark.
+   ============================================================ */
+
+:root {
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px;
+  --ease: 200ms cubic-bezier(0.4,0,0.2,1);
+  --ring: 0 0 0 3px var(--accent-soft);
+
+  --patina: var(--accent-2);
+  --accent-text: var(--accent);
+  --faint: color-mix(in srgb, var(--muted) 55%, var(--surface));
+  --border-strong: color-mix(in srgb, var(--accent) 62%, transparent);
+  --accent-pale: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  --accent-deep: color-mix(in srgb, var(--accent) 68%, var(--bg-deep));
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --glow: rgba(168,67,42,0.10);
+}
+
+/* ---- NOTEBOOK light ---- */
+html[data-palette="notebook"][data-theme="light"] {
+  --bg: radial-gradient(1200px 700px at 50% -10%, #efe8d8, #e2d9c6);
+  --bg-deep: #efe9db;
+  --surface: #fbf8f0; --surface-2: #f3ecda; --surface-3: #eae1cb;
+  --fg: #2a2317; --text: #3b3325; --muted: #948a74;
+  --border: rgba(70,58,36,0.16);
+  --accent: #a8432a; --accent-2: #c8623f;
+  --grad: linear-gradient(135deg,#c8623f,#a8432a);
+  --on-accent: #fff;
+  --warn: #e0414b;
+  --grid: transparent;
+  --sp1:#a8432a; --sp2:#2f5599; --sp3:#3f7d4e; --sp4:#7a4fa3; --sp5:#b5852a;
+  --shadow-sm: 0 1px 2px rgba(90,74,48,0.04), 0 2px 6px rgba(90,74,48,0.06);
+  --shadow-md: 0 2px 4px rgba(90,74,48,0.06), 0 8px 20px rgba(90,74,48,0.10);
+  --shadow-lg: 0 4px 8px rgba(90,74,48,0.08), 0 16px 36px rgba(90,74,48,0.16);
+  --shadow-inset: inset 0 1px 2px rgba(90,74,48,0.10);
+}
+
+/* ---- NOTEBOOK dark ---- */
+html[data-palette="notebook"][data-theme="dark"] {
+  --bg: radial-gradient(1200px 700px at 50% -10%, #26211a, #1a1611);
+  --bg-deep: #1f1a12;
+  --surface: #241f18; --surface-2: #2b261d; --surface-3: #332d22;
+  --fg: #f6efdd; --text: #e8dfca; --muted: #a99c80;
+  --border: rgba(226,208,170,0.14);
+  --accent: #e0895f; --accent-2: #c8623f;
+  --grad: linear-gradient(135deg,#e0895f,#c8623f);
+  --on-accent: #fff; --warn: #f87171;
+  --grid: transparent;
+  --sp1:#e0895f; --sp2:#7ba3d4; --sp3:#84c39a; --sp4:#b79ad8; --sp5:#d8b061;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30), 0 2px 6px rgba(0,0,0,0.34);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.36), 0 8px 20px rgba(0,0,0,0.42);
+  --shadow-lg: 0 4px 8px rgba(0,0,0,0.40), 0 16px 36px rgba(0,0,0,0.52);
+  --shadow-inset: inset 0 1px 2px rgba(0,0,0,0.40);
+}
+
+/* ---- BLUEPRINT light ---- */
+html[data-palette="blueprint"][data-theme="light"] {
+  --bg: #eef3f9; --bg-deep: #e6eef8;
+  --surface: #ffffff; --surface-2: #f1f5fb; --surface-3: #e6eef8;
+  --fg: #0f1830; --text: #16213e; --muted: #5b6b86;
+  --border: #c2d2e8;
+  --accent: #2563eb; --accent-2: #06b6d4;
+  --grad: linear-gradient(135deg,#2563eb,#06b6d4);
+  --on-accent: #fff; --warn: #e0414b;
+  --grid: rgba(37,99,235,0.055);
+  --sp1:#2563eb; --sp2:#0891b2; --sp3:#d97706; --sp4:#7c3aed; --sp5:#db2777;
+  --shadow-sm: 0 1px 2px rgba(22,33,62,0.05), 0 2px 6px rgba(22,33,62,0.07);
+  --shadow-md: 0 2px 4px rgba(22,33,62,0.07), 0 8px 20px rgba(22,33,62,0.10);
+  --shadow-lg: 0 4px 8px rgba(22,33,62,0.09), 0 16px 36px rgba(22,33,62,0.14);
+  --shadow-inset: inset 0 1px 2px rgba(22,33,62,0.10);
+}
+
+/* ---- BLUEPRINT dark ---- */
+html[data-palette="blueprint"][data-theme="dark"] {
+  --bg: #091222; --bg-deep: #0c1830;
+  --surface: #0f1f38; --surface-2: #16294a; --surface-3: #1d3257;
+  --fg: #eef4ff; --text: #cad9f2; --muted: #8197bd;
+  --border: #28395c;
+  --accent: #4d9fff; --accent-2: #22d3ee;
+  --grad: linear-gradient(135deg,#4d9fff,#22d3ee);
+  --on-accent: #091222; --warn: #f87171;
+  --grid: rgba(120,170,255,0.055);
+  --sp1:#4d9fff; --sp2:#22d3ee; --sp3:#fbbf24; --sp4:#a78bfa; --sp5:#f472b6;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30), 0 2px 6px rgba(0,0,0,0.36);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.38), 0 8px 20px rgba(0,0,0,0.44);
+  --shadow-lg: 0 4px 8px rgba(0,0,0,0.42), 0 16px 36px rgba(0,0,0,0.52);
+  --shadow-inset: inset 0 1px 2px rgba(0,0,0,0.40);
+}
+
+/* ---- AURORA dark ---- */
+html[data-palette="aurora"][data-theme="dark"] {
+  --bg: #0c0c10; --bg-deep: #14141a;
+  --surface: #161619; --surface-2: #1d1d22; --surface-3: #26262d;
+  --fg: #fbfbfd; --text: #e6e6ea; --muted: #9a9aa6;
+  --border: #2d2d35;
+  --accent: #ec4899; --accent-2: #8b5cf6;
+  --grad: linear-gradient(135deg,#ec4899,#8b5cf6,#3b82f6);
+  --on-accent: #fff; --warn: #f87171;
+  --grid: transparent;
+  --sp1:#ec4899; --sp2:#8b5cf6; --sp3:#3b82f6; --sp4:#22d3ee; --sp5:#fbbf24;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.34), 0 2px 6px rgba(0,0,0,0.40);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.42), 0 8px 20px rgba(0,0,0,0.48);
+  --shadow-lg: 0 4px 8px rgba(0,0,0,0.46), 0 16px 36px rgba(0,0,0,0.56);
+  --shadow-inset: inset 0 1px 2px rgba(0,0,0,0.44);
+}
+
+/* ---- AURORA light ---- */
+html[data-palette="aurora"][data-theme="light"] {
+  --bg: #f6f6f8; --bg-deep: #ececf1;
+  --surface: #ffffff; --surface-2: #f3f3f6; --surface-3: #ececf1;
+  --fg: #111114; --text: #1d1d22; --muted: #6b6b78;
+  --border: #e2e2e8;
+  --accent: #db2777; --accent-2: #7c3aed;
+  --grad: linear-gradient(135deg,#db2777,#7c3aed,#3b82f6);
+  --on-accent: #fff; --warn: #e0414b;
+  --grid: transparent;
+  --sp1:#db2777; --sp2:#7c3aed; --sp3:#3b82f6; --sp4:#0891b2; --sp5:#d97706;
+  --shadow-sm: 0 1px 2px rgba(20,20,30,0.05), 0 2px 6px rgba(20,20,30,0.07);
+  --shadow-md: 0 2px 4px rgba(20,20,30,0.07), 0 8px 20px rgba(20,20,30,0.10);
+  --shadow-lg: 0 4px 8px rgba(20,20,30,0.09), 0 16px 36px rgba(20,20,30,0.14);
+  --shadow-inset: inset 0 1px 2px rgba(20,20,30,0.10);
+}
+
+html[data-palette="notebook"] {
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-body: 'Onest', system-ui, sans-serif;
+}
