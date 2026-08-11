@@ -31,6 +31,19 @@ pub struct BoardNode {
     #[serde(rename = "customTitle")]
     pub custom_title: Option<String>,
     pub blocks: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// kind 'node' containers hold cards with parentId = container id
+    #[serde(rename = "parentId")]
+    #[serde(default)]
+    pub parent_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TagInfo {
+    pub name: String,
+    pub color: i64,
+    pub count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -42,6 +55,18 @@ pub struct BoardEdge {
     pub to_id: String,
     pub color: i64,
     pub label: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TrashEntry {
+    pub id: i64,
+    #[serde(rename = "boardId")]
+    pub board_id: String,
+    #[serde(rename = "cardId")]
+    pub card_id: String,
+    pub data: String,
+    #[serde(rename = "deletedAt")]
+    pub deleted_at: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +110,17 @@ fn init_db(conn: &Connection) {
             board_id TEXT,
             updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS tag_colors (
+            name TEXT PRIMARY KEY,
+            color INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS trash (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            board_id TEXT NOT NULL,
+            card_id TEXT NOT NULL UNIQUE,
+            data TEXT NOT NULL,
+            deleted_at TEXT NOT NULL
+        );
         CREATE INDEX IF NOT EXISTS idx_board_cards_board ON board_cards(board_id);
         CREATE INDEX IF NOT EXISTS idx_board_edges_board ON board_edges(board_id);
         ",
@@ -94,6 +130,8 @@ fn init_db(conn: &Connection) {
     // Lightweight migrations for existing databases
     conn.execute("ALTER TABLE board_cards ADD COLUMN blocks TEXT", []).ok();
     conn.execute("ALTER TABLE board_cards ADD COLUMN custom_title TEXT", []).ok();
+    conn.execute("ALTER TABLE board_cards ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'", []).ok();
+    conn.execute("ALTER TABLE board_cards ADD COLUMN parent_id TEXT", []).ok();
 
     // Ensure at least one board exists
     let count: i64 = conn
@@ -156,8 +194,8 @@ pub fn create_board(conn: &Connection, name: &str, source_session_id: &str) -> B
 pub fn get_board_nodes(conn: &Connection, board_id: &str) -> Vec<BoardNode> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, x, y, w, h, text, c, kind, image, custom_title, blocks FROM board_cards
-             WHERE board_id = ?1 ORDER BY updated_at ASC",
+            "SELECT id, x, y, w, h, text, c, kind, image, custom_title, blocks, tags, parent_id
+             FROM board_cards WHERE board_id = ?1 ORDER BY updated_at ASC",
         )
         .unwrap();
     let rows = stmt.query_map([board_id], |row| {
@@ -173,9 +211,15 @@ pub fn get_board_nodes(conn: &Connection, board_id: &str) -> Vec<BoardNode> {
             image: row.get(8).unwrap_or_default(),
             custom_title: row.get(9).ok(),
             blocks: row.get(10).ok(),
+            tags: parse_tags(row.get::<_, String>(11).unwrap_or_default()),
+            parent_id: row.get(12).ok(),
         })
     });
     rows.map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default()
+}
+
+fn parse_tags(raw: String) -> Vec<String> {
+    serde_json::from_str(&raw).unwrap_or_default()
 }
 
 pub fn get_board_edges(conn: &Connection, board_id: &str) -> Vec<BoardEdge> {
@@ -211,11 +255,13 @@ pub fn replace_board(
 
     for n in nodes {
         conn.execute(
-            "INSERT INTO board_cards (id,x,y,w,h,text,c,kind,image,custom_title,blocks,board_id,updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            "INSERT INTO board_cards (id,x,y,w,h,text,c,kind,image,custom_title,blocks,tags,parent_id,board_id,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
             rusqlite::params![
                 n.id, n.x, n.y, n.w, n.h, n.text, n.c, n.kind,
-                n.image, n.custom_title, n.blocks, board_id, now
+                n.image, n.custom_title, n.blocks,
+                serde_json::to_string(&n.tags).unwrap_or_else(|_| "[]".to_string()),
+                n.parent_id, board_id, now
             ],
         )
         .ok();
@@ -278,4 +324,134 @@ pub fn first_board_id(conn: &Connection) -> Option<String> {
         |row| row.get(0),
     )
     .ok()
+}
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+/// All tags across every board, with usage counts and stored colors.
+/// Tags that exist only in tag_colors (created but not yet used) are listed
+/// with count 0. Color 0 means "unassigned" (frontend picks a deterministic default).
+pub fn list_tags(conn: &Connection) -> Vec<TagInfo> {
+    let mut stmt = conn
+        .prepare(
+            "WITH used AS (
+                SELECT tag.value AS name, COUNT(*) AS count
+                FROM board_cards c, json_each(c.tags) AS tag
+                GROUP BY tag.value
+             )
+             SELECT a.name,
+                    COALESCE(tc.color, 0) AS color,
+                    a.count AS count
+             FROM (
+                SELECT name, count FROM used
+                UNION
+                SELECT name, 0 FROM tag_colors
+                WHERE name NOT IN (SELECT name FROM used)
+             ) a
+             LEFT JOIN tag_colors tc ON tc.name = a.name
+             ORDER BY a.count DESC, a.name ASC",
+        )
+        .unwrap();
+    let rows = stmt.query_map([], |row| {
+        Ok(TagInfo {
+            name: row.get(0)?,
+            color: row.get(1)?,
+            count: row.get(2)?,
+        })
+    });
+    rows.map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default()
+}
+
+pub fn set_tag_color(conn: &Connection, name: &str, color: i64) {
+    conn.execute(
+        "INSERT INTO tag_colors (name, color) VALUES (?1, ?2)
+         ON CONFLICT(name) DO UPDATE SET color = excluded.color",
+        rusqlite::params![name, color],
+    )
+    .ok();
+}
+
+pub fn delete_tag_color(conn: &Connection, name: &str) {
+    conn.execute("DELETE FROM tag_colors WHERE name = ?1", [name]).ok();
+}
+
+// ---------------------------------------------------------------------------
+// Trash (deleted notes history)
+// ---------------------------------------------------------------------------
+pub fn save_to_trash(conn: &Connection, board_id: &str, card_id: &str, data: &str) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO trash (board_id, card_id, data, deleted_at) VALUES (?1,?2,?3,?4)
+         ON CONFLICT(card_id) DO UPDATE SET board_id = excluded.board_id,
+                                            data = excluded.data,
+                                            deleted_at = excluded.deleted_at",
+        rusqlite::params![board_id, card_id, data, now],
+    )
+    .ok();
+}
+
+pub fn list_trash(conn: &Connection) -> Vec<TrashEntry> {
+    let mut stmt = conn
+        .prepare("SELECT id, board_id, card_id, data, deleted_at FROM trash ORDER BY deleted_at DESC")
+        .unwrap();
+    let rows = stmt.query_map([], |row| {
+        Ok(TrashEntry {
+            id: row.get(0)?,
+            board_id: row.get(1)?,
+            card_id: row.get(2)?,
+            data: row.get(3)?,
+            deleted_at: row.get(4)?,
+        })
+    });
+    rows.map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default()
+}
+
+/// Re-insert a trashed card into its original board (same id), then drop the
+/// trash row. Returns the restored node (or an error if it no longer exists).
+pub fn restore_trash(conn: &Connection, trash_id: i64) -> Result<BoardNode, String> {
+    let row: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT board_id, card_id, data FROM trash WHERE id = ?1",
+            [trash_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .ok();
+    let (board_id, card_id, data) = row.ok_or_else(|| "Trash entry not found".to_string())?;
+    let node: BoardNode =
+        serde_json::from_str(&data).map_err(|e| format!("Bad node data: {}", e))?;
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT OR IGNORE INTO board_cards
+           (id,x,y,w,h,text,c,kind,image,custom_title,blocks,tags,parent_id,board_id,updated_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
+        rusqlite::params![
+            card_id, node.x, node.y, node.w, node.h, node.text, node.c, node.kind,
+            node.image, node.custom_title, node.blocks,
+            serde_json::to_string(&node.tags).unwrap_or_else(|_| "[]".to_string()),
+            node.parent_id, board_id, now
+        ],
+    )
+    .ok();
+    conn.execute("DELETE FROM trash WHERE id = ?1", [trash_id]).ok();
+    conn.execute(
+        "UPDATE boards SET updated_at = ?1 WHERE id = ?2",
+        rusqlite::params![now, board_id],
+    )
+    .ok();
+    Ok(node)
+}
+
+/// Permanently discard a trash entry without restoring it.
+pub fn delete_trash_entry(conn: &Connection, trash_id: i64) {
+    conn.execute("DELETE FROM trash WHERE id = ?1", [trash_id]).ok();
+}
+
+/// Drop trash rows for cards that already exist again (e.g. after undo).
+pub fn sync_trash(conn: &Connection) {
+    conn.execute(
+        "DELETE FROM trash WHERE card_id IN (SELECT id FROM board_cards)",
+        [],
+    )
+    .ok();
 }

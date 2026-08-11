@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { getSidecarUrl, createBoard, listBoards, getBoard, putBoard } from '../lib/tauri';
 import { renderMarkdown, notesToNodes } from '../lib/markdown';
+import { getAiCfg, getAskNotes } from '../lib/ai';
 import type { Board, BoardNode } from '../lib/types';
 
 interface Segment {
@@ -37,7 +38,7 @@ function stepIndexFor(stage: string) {
   return PIPELINE.findIndex((s) => s.toLowerCase().startsWith(first));
 }
 
-export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => void }) {
+export function Capture({ onOpenBoard, onBoardCreated }: { onOpenBoard: (boardId: string) => void; onBoardCreated?: () => void }) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -57,6 +58,10 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
   const [boardSel, setBoardSel] = useState('');
   const [sending, setSending] = useState(false);
   const [sentInfo, setSentInfo] = useState<{ count: number; boardId: string } | null>(null);
+  const [notePickOpen, setNotePickOpen] = useState(false);
+  const [noteModels, setNoteModels] = useState<{ name: string; size: number }[]>([]);
+  const [notePickSel, setNotePickSel] = useState('');
+  const [notePicking, setNotePicking] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -173,8 +178,15 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
 
     try {
       const baseUrl = await getSidecarUrl();
+      const cfg = getAiCfg();
       const form = new FormData();
       form.append('file', blob, filename);
+      form.append('provider', cfg.provider);
+      form.append('api_base', cfg.api_base);
+      form.append('api_key', cfg.api_key);
+      form.append('stt_model', cfg.stt_model);
+      form.append('llm_model', cfg.llm_model);
+      form.append('notes_mode', getAskNotes() && cfg.provider === 'local' ? 'ask' : 'auto');
       const res = await fetch(`${baseUrl}/api/transcribe`, { method: 'POST', body: form });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -210,15 +222,19 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
 
       setTranscript(result.transcript || '');
       setSegments(result.segments || []);
-      setNotes(result.notes || '');
-      if (result.warning) {
-        setStatusText('Done · ⚠ ' + result.warning);
+      if (result.notes === null || result.notes === undefined) {
+        openNotePicker();
       } else {
-        setStatusText('Transcription complete.');
-      }
-      if (result.notes && result.notes.trim()) {
-        setShowBoardPrompt(true);
-        listBoards().then(setBoards).catch(() => {});
+        setNotes(result.notes || '');
+        if (result.warning) {
+          setStatusText('Done · ⚠ ' + result.warning);
+        } else {
+          setStatusText('Transcription complete.');
+        }
+        if (result.notes && result.notes.trim()) {
+          setShowBoardPrompt(true);
+          listBoards().then(setBoards).catch(() => {});
+        }
       }
     } catch (err: any) {
       setStatusText('');
@@ -243,7 +259,7 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
       const res = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, messages: history }),
+        body: JSON.stringify({ transcript, messages: history, cfg: getAiCfg() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Failed (${res.status})`);
@@ -255,6 +271,61 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
     }
   }, [chats, busyChat, transcript]);
 
+  const openNotePicker = useCallback(async () => {
+    setError('');
+    try {
+      const baseUrl = await getSidecarUrl();
+      const res = await fetch(`${baseUrl}/api/status`);
+      if (res.ok) {
+        const s = await res.json();
+        const models: { name: string; size: number }[] = (s.ollama_models || []).map(
+          (n: string) => ({ name: n, size: (s.ollama_sizes || {})[n] || 0 })
+        );
+        if (models.length) {
+          const cfg = getAiCfg();
+          setNoteModels(models);
+          setNotePickSel(
+            models.some((m) => m.name === cfg.llm_model) ? cfg.llm_model : (s.ollama_smallest || models[0].name)
+          );
+          setNotePickOpen(true);
+          return;
+        }
+      }
+      setStatusText('Transcription complete.');
+    } catch {
+      setStatusText('Transcription complete.');
+    }
+  }, []);
+
+  const generateNotes = useCallback(async (model: string) => {
+    if (!transcript || notePicking || !model) return;
+    setNotePicking(true);
+    try {
+      const baseUrl = await getSidecarUrl();
+      const res = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          messages: [],
+          cfg: { ...getAiCfg(), llm_model: model },
+          notes: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Failed (${res.status})`);
+      setNotes(data.reply || '');
+      setStatusText('Notes generated.');
+      setShowBoardPrompt(true);
+      listBoards().then(setBoards).catch(() => {});
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setNotePicking(false);
+      setNotePickOpen(false);
+    }
+  }, [transcript, notePicking]);
+
   const sendToBoard = useCallback(async (boardId: string) => {
     if (sending) return;
     const drafts = notesToNodes(notes);
@@ -262,15 +333,20 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
     setSending(true);
     try {
       let target = boardId;
+      const sourceTitle = transcript.split('\n')[0]?.replace(/^Speaker \d+:\s*/, '').slice(0, 60) || 'Untitled recording';
+      const sourceTag = sourceTitle.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 24);
       if (!target) {
-        const title = transcript.split('\n')[0]?.replace(/^Speaker \d+:\s*/, '').slice(0, 60) || 'Untitled recording';
-        const board = await createBoard(title);
+        const board = await createBoard(sourceTitle);
         target = board.id;
       }
       const existing = await getBoard(target);
       const allNodes: BoardNode[] = [
         ...existing.nodes,
-        ...drafts.map((d) => ({ ...d, id: newId() })),
+        ...drafts.map((d) => ({
+          ...d,
+          id: newId(),
+          tags: [d.tag, sourceTag].filter((t): t is string => !!t),
+        })),
       ];
       const edgesPayload = existing.edges.map((e) => ({
         id: e.id, from: e.fromId, to: e.toId, color: e.color, label: e.label,
@@ -278,12 +354,13 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
       await putBoard(target, allNodes, edgesPayload);
       setShowBoardPrompt(false);
       setSentInfo({ count: drafts.length, boardId: target });
+      if (!boardId && onBoardCreated) onBoardCreated();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setSending(false);
     }
-  }, [notes, transcript, sending]);
+  }, [notes, transcript, sending, onBoardCreated]);
 
   const pipeIndex = stepIndexFor(stage);
   const chatReady = !!transcript;
@@ -367,7 +444,7 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
             <span className="eyebrow">Transcript</span>
             <span className="grow" />
             <span className="hint">
-              {segments.length ? `${new Set(segments.map((s) => s.speaker)).size} speaker${new Set(segments.map((s) => s.speaker)).size === 1 ? '' : 's'}` : '—'}
+              {(() => { const n = segments.length ? new Set(segments.map((s) => s.speaker).filter(Boolean)).size : 0; return n ? `${n} speaker${n === 1 ? '' : 's'}` : '—'; })()}
             </span>
           </div>
           <div className="transcript-scroll">
@@ -401,12 +478,6 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
           </div>
 
           <div className="ai-summary">
-            {notes ? (
-              <div className="notes" dangerouslySetInnerHTML={{ __html: renderMarkdown(notes) }} />
-            ) : (
-              <p className="ai-empty" style={{ marginTop: 12 }}>Summary, action items, and a chat over the transcript will appear here after transcription.</p>
-            )}
-
             {showBoardPrompt && (
               <div className="board-prompt">
                 <span>Send notes to a board?</span>
@@ -427,11 +498,40 @@ export function Capture({ onOpenBoard }: { onOpenBoard: (boardId: string) => voi
               </div>
             )}
 
+            {notePickOpen && (
+              <div className="board-prompt">
+                <span>Generate notes with which model?</span>
+                <select
+                  className="select" style={{ width: 'auto', height: 30, fontSize: '0.78rem' }}
+                  value={notePickSel}
+                  onChange={(e) => setNotePickSel(e.target.value)}
+                >
+                  {noteModels.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.name}{m.size ? ` · ${(m.size / 1e9).toFixed(1)} GB` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn btn-primary btn-sm" onClick={() => generateNotes(notePickSel)} disabled={notePicking || !notePickSel}>
+                  Generate
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setNotePickOpen(false)} disabled={notePicking}>
+                  Skip
+                </button>
+              </div>
+            )}
+
             {sentInfo && (
               <div className="board-prompt">
                 <span className="board-ok">✓ Sent {sentInfo.count} notes to board.</span>
                 <span className="open-link" onClick={() => onOpenBoard(sentInfo.boardId)}>Open board →</span>
               </div>
+            )}
+
+            {notes ? (
+              <div className="notes" dangerouslySetInnerHTML={{ __html: renderMarkdown(notes) }} />
+            ) : (
+              <p className="ai-empty" style={{ marginTop: 12 }}>Summary, action items, and a chat over the transcript will appear here after transcription.</p>
             )}
           </div>
 

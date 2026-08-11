@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Board, BoardNode, BoardEdge, BoardResponse } from './types';
+import type { Board, BoardNode, BoardEdge, BoardResponse, TagInfo, TrashEntry } from './types';
 
 export async function listBoards(): Promise<Board[]> {
   return invoke<Board[]>('list_boards');
@@ -54,4 +54,49 @@ export async function getSidecarUrl(): Promise<string> {
 // Board images — saved to data/board_images, served via the boardimg:// protocol
 export async function saveBoardImage(bytes: Uint8Array, ext: string): Promise<{ id: string; url: string; ext: string }> {
   return invoke('save_board_image', { bytes, ext });
+}
+
+// Ingest an image dropped from the OS (path based)
+export async function saveBoardImageFromPath(path: string): Promise<{ id: string }> {
+  return invoke('save_board_image_from_path', { path });
+}
+
+// Tags — global across all boards
+export async function listTags(): Promise<TagInfo[]> {
+  return invoke<TagInfo[]>('list_tags');
+}
+
+export async function setTagColor(name: string, color: number): Promise<void> {
+  return invoke('set_tag_color', { req: { name, color } });
+}
+
+export async function deleteTagColor(name: string): Promise<void> {
+  return invoke('delete_tag_color', { req: { name } });
+}
+
+// Trash — deleted notes history
+export async function listTrash(): Promise<TrashEntry[]> {
+  return invoke<TrashEntry[]>('list_trash');
+}
+
+export async function saveToTrash(boardId: string, node: BoardNode): Promise<void> {
+  return invoke('save_to_trash', { req: { boardId, cardId: node.id, data: JSON.stringify(node) } });
+}
+
+export async function restoreTrash(id: number): Promise<BoardNode> {
+  return invoke<BoardNode>('restore_trash', { id });
+}
+
+export async function deleteTrashEntry(id: number): Promise<void> {
+  return invoke('delete_trash_entry', { id });
+}
+
+export async function syncTrash(): Promise<void> {
+  return invoke('sync_trash');
+}
+
+// Board export — writes an AI-friendly Markdown file to the user's Documents
+// folder ("note-taker exports/") and reveals it in Explorer. Returns the path.
+export async function saveMarkdownExport(filename: string, content: string): Promise<string> {
+  return invoke<string>('save_markdown_export', { filename, content });
 }

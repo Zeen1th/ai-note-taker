@@ -1,4 +1,4 @@
-use crate::db::{self, Board, BoardNode, BoardEdge};
+use crate::db::{self, Board, BoardNode, BoardEdge, TagInfo, TrashEntry};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -22,6 +22,26 @@ pub struct RenameBoardReq {
 pub struct PutBoardReq {
     pub nodes: Vec<BoardNode>,
     pub edges: Vec<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+pub struct TagColorReq {
+    pub name: String,
+    pub color: i64,
+}
+
+#[derive(Deserialize)]
+pub struct TagNameReq {
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct SaveTrashReq {
+    #[serde(rename = "boardId")]
+    pub board_id: String,
+    #[serde(rename = "cardId")]
+    pub card_id: String,
+    pub data: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -125,4 +145,46 @@ pub fn rename_board_cmd(
     state: State<AppState>,
 ) -> Result<bool, String> {
     with_conn(&state, |conn| db::rename_board(conn, &board_id, &req.name))
+}
+
+#[tauri::command]
+pub fn list_tags(state: State<AppState>) -> Result<Vec<TagInfo>, String> {
+    with_conn(&state, |conn| db::list_tags(conn))
+}
+
+#[tauri::command]
+pub fn set_tag_color(req: TagColorReq, state: State<AppState>) -> Result<(), String> {
+    with_conn(&state, |conn| db::set_tag_color(conn, &req.name, req.color))
+}
+
+#[tauri::command]
+pub fn delete_tag_color(req: TagNameReq, state: State<AppState>) -> Result<(), String> {
+    with_conn(&state, |conn| db::delete_tag_color(conn, &req.name))
+}
+
+#[tauri::command]
+pub fn save_to_trash(req: SaveTrashReq, state: State<AppState>) -> Result<(), String> {
+    with_conn(&state, |conn| {
+        db::save_to_trash(conn, &req.board_id, &req.card_id, &req.data)
+    })
+}
+
+#[tauri::command]
+pub fn list_trash(state: State<AppState>) -> Result<Vec<TrashEntry>, String> {
+    with_conn(&state, |conn| db::list_trash(conn))
+}
+
+#[tauri::command]
+pub fn restore_trash(id: i64, state: State<AppState>) -> Result<BoardNode, String> {
+    with_conn(&state, |conn| db::restore_trash(conn, id))?
+}
+
+#[tauri::command]
+pub fn delete_trash_entry(id: i64, state: State<AppState>) -> Result<(), String> {
+    with_conn(&state, |conn| db::delete_trash_entry(conn, id))
+}
+
+#[tauri::command]
+pub fn sync_trash(state: State<AppState>) -> Result<(), String> {
+    with_conn(&state, |conn| db::sync_trash(conn))
 }

@@ -87,13 +87,65 @@ export interface DraftNode {
   h: number;
   text: string;
   c: number;
-  kind: string;
+  kind: 'note';
   image: string;
+  tag?: string;
+}
+
+// Heading → tag slug: "Action Items" → "action-items", "Summary" → "summary".
+function slugTag(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+// ---- Content-based sizing for spawned board notes -------------------------
+// The board note body renders at 1.34rem / line-height 1.75 (~38px per line)
+// with 22px side padding; the node head (color bar + title row) is ~74px.
+// Estimates are generous on purpose — a slightly taller note beats clipped text.
+const NODE_W = 260;
+const CHAR_W = 11.5;  // avg px per char at the 1.34rem body font
+const BODY_LH = 38;
+const HEADING_LH = 62; // h2 line + margins
+const CODE_LH = 30;
+const HEAD_H = 76;
+const BODY_PAD = 42;
+
+function wrapLines(text: string, charsPerLine: number): number {
+  if (!text) return 1;
+  return Math.max(1, Math.ceil(text.length / charsPerLine));
+}
+
+// Height needed to show `md` (markdown) as a board note of width `w`.
+export function estimateNodeHeight(md: string, w: number = NODE_W): number {
+  const inner = Math.max(120, w - 46);
+  const perLine = Math.max(10, Math.floor(inner / CHAR_W));
+  let h = 0;
+  let inCode = false;
+  for (const raw of md.split('\n')) {
+    const t = raw.trim();
+    if (/^```/.test(t)) { inCode = !inCode; continue; }
+    if (!t) { h += 10; continue; }
+    if (inCode) { h += CODE_LH; continue; }
+    if (/^#{1,3}\s/.test(t)) { h += HEADING_LH; continue; }
+    const isList = /^[-*+]\s/.test(t) || /^\d+[.)]\s/.test(t);
+    const isQuote = /^>\s?/.test(t);
+    const clean = t.replace(/^[-*+]\s*/, '').replace(/^\d+[.)]\s*/, '').replace(/^>\s*/, '');
+    const cpl = isList ? Math.max(8, perLine - 3) : perLine;
+    h += wrapLines(clean, cpl) * BODY_LH + (isList ? 4 : isQuote ? 12 : 9);
+  }
+  return Math.max(150, Math.round(HEAD_H + h + BODY_PAD));
 }
 
 // Split AI notes (markdown) into one node per top-level section — mirrors the
 // old backend's _notes_to_nodes(): Summary / Key Points / Decisions / Action
-// Items each become their own node in a gentle cascade.
+// Items each become their own node in a gentle cascade. The section text is
+// converted to real HTML (headings, lists, quotes) so TipTap renders it
+// properly, and each node is sized to fit its content.
 export function notesToNodes(notesMarkdown: string): DraftNode[] {
   if (!notesMarkdown || !notesMarkdown.trim()) return [];
   const parts = notesMarkdown.split(/^#{1,2}\s+.*$/m);
@@ -105,17 +157,25 @@ export function notesToNodes(notesMarkdown: string): DraftNode[] {
     sections.push(body ? `${headings[i]}\n${body}` : headings[i]);
   }
   const nodes: DraftNode[] = [];
+  let rowY = 80;
+  let rowH = 0;
   sections.forEach((text, idx) => {
     if (!text.trim()) return;
+    const heading = headings[idx];
+    const col = idx % 4;
+    if (col === 0 && idx > 0) { rowY += rowH + 40; rowH = 0; }
+    const h = estimateNodeHeight(text);
+    rowH = Math.max(rowH, h);
     nodes.push({
-      x: 80 + (idx % 4) * 280,
-      y: 80 + Math.floor(idx / 4) * 200,
-      w: 260,
-      h: 160,
-      text,
+      x: 80 + col * (NODE_W + 20),
+      y: rowY,
+      w: NODE_W,
+      h,
+      text: renderMarkdown(text),
       c: idx % 5,
       kind: 'note',
       image: '',
+      tag: heading ? slugTag(heading.replace(/^#{1,2}\s+/, '')) : undefined,
     });
   });
   return nodes;

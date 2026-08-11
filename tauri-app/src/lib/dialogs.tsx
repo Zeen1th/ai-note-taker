@@ -13,6 +13,7 @@ interface PromptSpec {
 type DialogState =
   | { kind: 'prompt'; spec: PromptSpec; resolve: (value: string | null) => void }
   | { kind: 'confirm'; title: string; message: string; confirmLabel: string; resolve: (value: boolean) => void }
+  | { kind: 'custom'; title: string; body: (close: () => void) => React.ReactNode; resolve: (value: null) => void }
   | null;
 
 let setDialog: (d: DialogState) => void = () => {};
@@ -23,6 +24,10 @@ export function showPrompt(spec: PromptSpec): Promise<string | null> {
 
 export function showConfirm(title: string, message: string, confirmLabel = 'Delete'): Promise<boolean> {
   return new Promise((resolve) => setDialog({ kind: 'confirm', title, message, confirmLabel, resolve }));
+}
+
+export function showCustom(title: string, body: (close: () => void) => React.ReactNode): Promise<null> {
+  return new Promise((resolve) => setDialog({ kind: 'custom', title, body, resolve }));
 }
 
 export function DialogHost() {
@@ -39,16 +44,18 @@ export function DialogHost() {
 
   if (!dialog) return null;
   const isPrompt = dialog.kind === 'prompt';
+  const isCustom = dialog.kind === 'custom';
 
   return (
     <div className="dialog-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) close(null); }}>
       <div className="dialog-card" role="dialog" aria-modal="true">
         <div className="dialog-title">{dialog.kind === 'prompt' ? dialog.spec.title : dialog.title}</div>
+        {isCustom && dialog.body(() => close(null))}
         {dialog.kind === 'confirm' && <div className="dialog-text">{dialog.message}</div>}
         {isPrompt && (
           <PromptBody spec={dialog.spec} onOk={(v) => close(v)} onCancel={() => close(null)} />
         )}
-        {!isPrompt && (
+        {dialog.kind === 'confirm' && (
           <div className="dialog-actions">
             <button className="btn btn-ghost" onClick={() => close(false)}>Cancel</button>
             <button className="btn btn-danger" onClick={() => close(true)}>{dialog.confirmLabel}</button>

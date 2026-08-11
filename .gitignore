@@ -13,9 +13,15 @@ __pycache__/
 venv/
 env/
 
+# Model / download caches (kept off C: in dev)
+.hf-cache/
+.pip-cache/
+
 # Local logs / scratch files
 _*.log
 *.log
+*_build_out.txt
+*_cargo.txt
 
 # Editor / OS cruft
 .vscode/

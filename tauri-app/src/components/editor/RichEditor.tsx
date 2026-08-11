@@ -2,8 +2,11 @@ import { useState, useCallback } from 'react';
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import { editorExtensions } from '../../lib/editor/extensions';
 import { useSlashMenu, SlashMenuView } from './slashMenu';
-import { BubbleFormatBar, StaticToolbar } from './format';
+import { useTagMenu, TagMenuView } from './tagMenu';
+import { BubbleFormatBar, StaticToolbar, type LinkTargetItem } from './format';
 import { toast } from '../../lib/toast';
+
+export type { LinkTargetItem } from './format';
 
 interface Props {
   blocks?: string | null;
@@ -11,10 +14,12 @@ interface Props {
   placeholder?: string;
   autofocus?: boolean;
   toolbar?: boolean;
+  linkTargets?: LinkTargetItem[];
+  onTagSelect?: (tag: string) => void;
   onChange: (json: object, html: string) => void;
 }
 
-export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, onChange }: Props) {
+export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, linkTargets, onTagSelect, onChange }: Props) {
   const [codeActive, setCodeActive] = useState(false);
 
   const editor = useEditor({
@@ -35,6 +40,11 @@ export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, onCh
 
   const { slash, items, slashIdx, runItem, setSlashIdx } = useSlashMenu(editor);
 
+  const { tagMenu, tagItems, tagIdx, pickTag, setTagIdx } = useTagMenu(
+    editor,
+    (tag) => onTagSelect?.(tag),
+  );
+
   const copyCode = useCallback(() => {
     if (!editor) return;
     const node = editor.state.selection.$from.parent;
@@ -45,7 +55,7 @@ export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, onCh
 
   return (
     <div className="rich-editor">
-      {editor && toolbar && <StaticToolbar editor={editor} />}
+      {editor && toolbar && <StaticToolbar editor={editor} linkTargets={linkTargets} />}
       {editor && (
         <>
           <EditorContent editor={editor} />
@@ -65,7 +75,7 @@ export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, onCh
               return !selection.empty && !ed.isActive('codeBlock');
             }}
           >
-            <BubbleFormatBar editor={editor} />
+            <BubbleFormatBar editor={editor} linkTargets={linkTargets} />
           </BubbleMenu>
 
           {slash && (
@@ -75,6 +85,16 @@ export function RichEditor({ blocks, html, placeholder, autofocus, toolbar, onCh
               slashIdx={slashIdx}
               onPick={runItem}
               onHover={setSlashIdx}
+            />
+          )}
+
+          {tagMenu && onTagSelect && (
+            <TagMenuView
+              menu={tagMenu}
+              items={tagItems}
+              idx={tagIdx}
+              onPick={pickTag}
+              onHover={setTagIdx}
             />
           )}
         </>

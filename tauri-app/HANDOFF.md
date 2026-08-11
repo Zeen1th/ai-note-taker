@@ -1,153 +1,55 @@
-# note·taker — Tauri 2 Rewrite Handoff
+# note·taker — HANDOFF (current state, v0.2.0-beta.5)
 
-## Quick Start
-```bash
-cd tauri-app
-npm run tauri dev
-```
-First build compiles 384 Rust crates (~5 min). After that, launches in ~10s.
+> For the full agent guide (architecture, code map, release workflow, traps) read **`AGENTS.md`** at the repo root.
 
-## Architecture
-```
-tauri-app/
-├── src-tauri/                    Rust backend
-│   ├── src/
-│   │   ├── main.rs               Entry point
-│   ├── src/lib.rs                Tauri builder, state, command registration
-│   ├── src/db.rs                 SQLite (rusqlite) — boards, nodes, edges
-│   ├── src/commands.rs           #[tauri::command] IPC layer
-│   ├── src/ai_sidecar.rs         Spawns Python sidecar for WhisperX/Ollama
-│   ├── Cargo.toml                Rust deps (rusqlite, uuid, chrono, which)
-│   ├── tauri.conf.json           Frameless window, no decorations
-│   └── python/
-│       ├── sidecar.py            FastAPI: transcribe, chat, board/chat, status
-│       └── requirements.txt      AI deps only (whisperx, ollama, fastapi)
-│
-├── src/                          React frontend (TypeScript)
-│   ├── App.tsx                   Shell: titlebar, sidebar, board canvas, routing
-│   ├── main.tsx                  React entry
-│   ├── components/
-│   │   ├── BoardNode.tsx         Draggable/resizable node (rich text, color)
-│   │   ├── BoardEdge.tsx         SVG bezier connectors (auto-route)
-│   │   ├── NoteModal.tsx         Blurred-overlay focused editor
-│   │   ├── ContextMenu.tsx       Right-click menu
-│   │   └── Capture.tsx           Recording + streaming transcription
-│   ├── store/
-│   │   └── boardStore.ts         Zustand store (nodes, edges, view, selection)
-│   ├── lib/
-│   │   ├── tauri.ts              invoke() wrappers + window controls
-│   │   └── types.ts              TS interfaces (Board, BoardNode, BoardEdge)
-│   ├── styles/
-│   │   ├── theme.css             3 palettes × light/dark (ported from kinpaku.css)
-│   │   └── app.css               Layout, nodes, edges, modal, capture
-│   ├── index.html                Fonts + initial palette
-│   └── package.json              React, Zustand, @tauri-apps/api
+## Quick start
+```powershell
+cd "S:\!Dev\AI note taker\New AI note taker\tauri-app"
+npm run dev                 # vite only (port 1420)
+npm run tauri dev           # full app shell (first Rust build ~5 min, then ~10 s)
+npm run build               # tsc && vite build — must pass before any TS work is "done"
+cargo check                 # in src-tauri/ — must pass before any Rust work is "done"
 ```
 
-## What's Built (Sessions 1-4)
+## Current status
+- **Version: 0.2.0-beta.5**, live on GitHub (Zeen1th/ai-note-taker) as non-prerelease "Latest".
+- Latest shipped feature: **Markdown board export** (toolbar → Export → preview/copy/save into `Documents\note-taker exports\`, AI-oriented structure: notes + tags, image refs, containers with children, groups, `A —label—> B` relationships).
+- Auto-update verified working **beta.4 → beta.5** (after re-uploading the new `latest.json` onto the beta.4 release — see AGENTS.md step 5).
 
-### ✅ Board Canvas
-- Pan/zoom (drag empty space, scroll wheel, spacebar-drag)
-- Double-click to add notes
-- Draggable nodes (document-level listeners, 4px threshold, group drag)
-- Resizable nodes (corner handle)
-- Rich text body (contentEditable, HTML storage, paste sanitization)
-- Node title (separate from content, double-click to rename)
-- Color bar + dot (5 palette speaker colors + accent)
-- SVG bezier connectors with auto-routing + arrowheads
-- Edge labels + click-to-delete
-- Multi-select (rubber-band marquee, shift-click toggle)
-- Auto-layout (Arrange button → non-overlapping grid)
-- Fit-to-view + Home buttons
-- View persistence (pan/zoom saved to localStorage per board)
+## Release history
+| Tag | Key | Auto-update | Notes |
+|---|---|---|---|
+| v0.2.0-beta.1 | old | — | first Tauri release |
+| v0.2.0-beta.2 | old | — | updater E2E test (version bump only) |
+| v0.2.0-beta.3 | old | ✗ | paste images, wheel-zoom, font picker, resize, groups, icon |
+| v0.2.0-beta.4 | **new** (empty pass) | ✓ (for beta.4+) | internal links, link picker, key rotation |
+| v0.2.0-beta.5 | new | ✓ | Markdown export |
 
-### ✅ Multi-Board
-- Sidebar board list (create/switch/rename/delete)
-- Each board has its own nodes + edges (board_id scoped)
-- SQLite stores everything — survives restarts
+**Legacy users**: anyone still on beta.2/3 must install beta.4+ manually once (old pubkey baked in — can never auto-update). Beta.4+ update fine.
 
-### ✅ Modal Note Editor
-- Blurred backdrop overlay
-- Full formatting toolbar: Bold, Italic, Strikethrough, H1/H2, Lists, Quote, Font size, Link
-- Real-time save back to the node
+## What's built (all shipped)
+- **Capture**: mic/system-audio recording (MediaRecorder → webm), streaming WhisperX transcription with speaker diarization (colored turns), AI notes, send-to-board.
+- **Board**: infinite canvas pan/zoom, notes/references/containers/groups, connectors with labels, 8-way resize, drag-reparent into containers, multi-select, arrange grid, fit-to-view, view persistence per board, board AI chat ("Ask the board").
+- **Notes**: TipTap editor (bold/italic/underline/strike/code/lists/quotes/links, font size/family, colors/highlights, images), slash menu, tag menu (`#tag`), bubble + static toolbars, focus-mode modal, **internal links** (pick any note/image/node/group; click to jump), undo/redo.
+- **Tags**: global tag store, colors, toolbar filter chips.
+- **Images**: paste from clipboard (11 types), drag-drop from OS, image picker, `boardimg://` protocol, wheel-zoom on hover.
+- **Workspace**: container opens as Notion-style list with quick-add and move-back-to-board.
+- **Library**: past recording sessions. **Trash**: restore/deletable deleted cards.
+- **Settings**: palette (3) × theme (light/dark), density, recording options (system audio, auto-transcribe, format, AI notes), model info, data location.
+- **Updater**: `useUpdater` hook — silent startup check, titlebar check button, changelog dialog, download progress, install.
 
-### ✅ Context Menu
-- Right-click node: Open in focus mode, Rename, Delete
-- Right-click canvas: Add note, Arrange, Fit, New board
+## Not done / open ideas
+- Large uncommitted work: everything since ~beta.3 (tags, Library, UpdateModal, internal links, export, icon, capture/settings upgrades) is uncommitted — **54 changed/untracked files**. Ask the user before committing.
+- Possible next features (discuss first): copy board as JSON for deeper AI context, printable/PDF export, image export inside markdown, touch support, session-to-board auto-link, more capture sources.
+- `data/`, `__pycache__`, `_*.log` at repo root are old-app leftovers — can be cleaned.
 
-### ✅ Capture Screen
-- MediaRecorder (mic → webm)
-- Streaming NDJSON transcription (6-stage pipeline progress)
-- Speaker-colored transcript turns
-- AI notes rendering
-- "Send to board" prompt after transcription
+## How to ship the next beta (abbreviated — full detail in AGENTS.md)
+1. Bump `0.2.0-beta.N` in `tauri.conf.json` (version **and** updater endpoint URL) + `Cargo.toml`.
+2. Give the user the one-liner build command (with `TAURI_SIGNING_PRIVATE_KEY` env from `src-tauri\tauri.key`, empty password).
+3. After "done": write `latest.json` manually, `gh release create`, and **re-upload `latest.json` to the previous release** (`--clobber`).
 
-### ✅ Frameless Window
-- `decorations: false` — no OS titlebar
-- `data-tauri-drag-region` on titlebar
-- Window controls via Tauri API (minimize/maximize/close)
-- Palette/theme toggle in titlebar
-
-### ✅ Python Sidecar
-- Spawns lazily when AI is first needed
-- Same WhisperX + diarization + Ollama pipeline
-- CORS-enabled for the Tauri frontend
-- Auto-stops on app exit
-
-## Rust IPC Commands
-| Command | Purpose |
-|---|---|
-| `list_boards` | Get all boards with node counts |
-| `create_board` | Create a new board |
-| `get_board` | Load a board's nodes + edges |
-| `put_board` | Full-replace nodes + edges (debounced) |
-| `delete_board_cmd` | Delete board + its nodes + edges |
-| `rename_board_cmd` | Rename a board |
-| `get_sidecar_url` | Spawn/get the Python AI sidecar URL |
-
-## Python Sidecar Endpoints (port 8765)
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/status` | What AI models are loaded |
-| `POST /api/transcribe` | Streaming transcription (NDJSON) |
-| `POST /api/chat` | Chat over a transcript |
-| `POST /api/board/chat` | Chat over board nodes |
-
-## SQLite Schema
-```
-boards:        id, name, source_session_id, created_at, updated_at
-board_cards:   id, x, y, w, h, text, c, kind, image, board_id, updated_at
-board_edges:   id, from_id, to_id, color, label, board_id, updated_at
-```
-DB location: next to the executable in `data/sessions.db`.
-
-## What's Left (Session 5+)
-- [ ] **Settings screen** — palette/theme/AI config (currently only titlebar toggles)
-- [ ] **Image nodes** — upload + inline resize in React (Rust image routes not yet ported)
-- [ ] **Board AI chat** — the `/api/board/chat` sidecar endpoint exists but no UI wired
-- [ ] **Drag-drop images** onto canvas
-- [ ] **Sessions library** — list/delete past recordings
-- [ ] **Export** — zip of DB + audio + images
-- [ ] **Installer** — `tauri build` → `.exe` / `.msi`
-- [ ] **App icon** — custom icon set (currently Tauri defaults)
-- [ ] **Keyboard shortcuts** — Ctrl+B/I in rich text, Ctrl+S, etc.
-- [ ] **Undo/redo** — not implemented
-- [ ] **Touch support** — pointer events work but untested on touchscreens
-
-## Key Design Decisions
-1. **Rust handles all non-AI operations** (SQLite, file I/O) — no HTTP server for normal operations
-2. **Python sidecar only for AI** — spawned lazily, talks via fetch on port 8765
-3. **Zustand for state** — lightweight, no boilerboard
-4. **CSS design system** — 3 palettes × light/dark, same tokens as the old kinpaku.css
-5. **Frameless window** — native Tauri drag, reliable on all platforms
-
-## Old App
-The original pywebview + FastAPI app lives in the repo root (`app.py`, `desktop.py`, `static/`). It still works via `notetaker.bat`. The Tauri rewrite is in `tauri-app/`.
-
-## Tech Stack
-- **Tauri 2.11** — app shell, IPC, bundling
-- **React 19** + **TypeScript** — frontend
-- **Zustand** — state management
-- **rusqlite** (bundled SQLite) — local database
-- **Python 3.12** + FastAPI + WhisperX + Ollama — AI sidecar
-- **Vite** — dev server + build
+## Known traps
+- `latest.json` version-pinning (see above) — if a user says "up to date" wrongly, it's this.
+- Never regenerate `src-tauri/tauri.key`.
+- Never print/commit `.env` (`HF_TOKEN`).
+- `npx tauri` mangles args; use `node node_modules\@tauri-apps\cli\tauri.js`.

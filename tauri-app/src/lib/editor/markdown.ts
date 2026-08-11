@@ -35,6 +35,10 @@ function inlineText(node: MDNode): string {
         const href = (m.attrs as any)?.href ?? '';
         return `[${acc}](${href})`;
       }
+      case 'internalLink':
+        // wiki-style: renders as [[label]] so exported markdown keeps the
+        // link target readable for humans and AI alike
+        return `[[${acc}]]`;
       case 'highlight': return `==${acc}==`;
       case 'underline': return acc;
       default: return acc;
@@ -124,4 +128,16 @@ function block(node: MDNode, depth: number, _orderedListIndex: number): string {
 export function docToMarkdown(doc: MDNode): string {
   const body = (doc.content ?? []).map((c) => block(c, 0, 0)).join('\n\n');
   return body.replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+/** Convert an HTML string to plain text (board nodes store HTML in `text`). */
+export function htmlToText(html: string): string {
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html;
+  try {
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    return el.textContent || '';
+  } catch {
+    return html.replace(/<[^>]+>/g, ' ');
+  }
 }
