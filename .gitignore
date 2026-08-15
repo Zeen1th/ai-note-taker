@@ -35,3 +35,6 @@ Thumbs.db
 
 # Saved sessions (SQLite db + audio recordings)
 data/
+
+# Design reference (local only — huge HTML skews GitHub language stats)
+note·taker - design system frontend.html
